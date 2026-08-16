@@ -11,5 +11,5 @@ export const inject = ['hyperlakePacks']
 /** Register adapter metadata for the lifetime of this bundle row. */
 export function apply(ctx: Context): void {
   const root = fileURLToPath(new URL('../', import.meta.url))
-  ctx.effect(() => registerPackDirectory(ctx, root), 'superharness-adapter-hyperlake.pack')
+  ctx.effect(() => registerPackDirectory(ctx, root, { defaultEnabled: true }), 'superharness-adapter-hyperlake.pack')
 }

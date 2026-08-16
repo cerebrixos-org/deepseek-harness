@@ -4,15 +4,26 @@
  * @module @cerebrixos/superharness-packs
  */
 
-import { readFileSync, realpathSync, statSync } from 'node:fs'
-import { isAbsolute, relative, resolve, sep } from 'node:path'
-import { Context, Service } from '@deepseek-ai/cordis'
+import { mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { load } from 'js-yaml'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { AssembleContext } from '@deepseek-ai/dsh-system-prompt'
+import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import type {
+  PackCatalogEntry, PackCatalogSnapshot, PackConfigureRequest, PackOperationResult,
+  PackSelectRequest, PackSelectionResult, PackSetEnabledRequest,
+} from './types.ts'
+
+export type * from './types.ts'
 
 /** Categories describe composition intent without creating incompatible formats. */
-export type PackCategory = 'capability' | 'adapter' | 'domain' | 'asset' | 'governance' | 'solution'
+export type PackCategory = import('./types.ts').PackCategory
 
 /** One explicitly exported file in an industry pack. */
 export interface PackAsset {
@@ -30,6 +41,10 @@ export interface PackAsset {
   adapters?: string[]
   /** Whether an adapter may execute this asset without translation. */
   portable?: boolean
+  /** Whether using the asset can change customer state. */
+  access?: 'read' | 'mutate'
+  /** Required admission before a mutating asset is executed. */
+  approval?: 'none' | 'required'
 }
 
 /** A customer-provided resource required by a pack. */
@@ -61,6 +76,8 @@ export interface PackManifest {
     oneOfAdapters?: string[]
   }
   provides?: string[]
+  /** Existing packs extended by this pack's namespaced assets. */
+  contributesTo?: string[]
   resourceSlots?: PackResourceSlot[]
   assets?: PackAsset[]
 }
@@ -72,11 +89,7 @@ export interface RegisteredPack {
 }
 
 /** A concrete customer resource selected for one logical pack slot. */
-export interface PackResourceBinding {
-  slotId: string
-  resourceType: string
-  resourceId: string
-}
+export type PackResourceBinding = import('./types.ts').PackResourceBinding
 
 /** Deterministic readiness result for activating one installed pack. */
 export interface PackValidationResult {
@@ -91,6 +104,8 @@ export interface PackValidationResult {
 export interface Config {
   /** Maximum bytes returned by one asset read. */
   maxAssetBytes?: number
+  /** Persistent non-secret lifecycle state. */
+  statePath?: string
 }
 
 const DEFAULT_MAX_ASSET_BYTES = 1_048_576
@@ -111,7 +126,25 @@ declare module '@deepseek-ai/cordis' {
 /** Runtime schema for registry configuration. */
 export const Config: z<Config> = z.object({
   maxAssetBytes: z.number().step(1).min(1).default(DEFAULT_MAX_ASSET_BYTES),
+  statePath: z.string().default(''),
 })
+
+interface PersistedPackState {
+  enabled: Record<string, boolean>
+  bindings: Record<string, PackResourceBinding[]>
+}
+
+interface PackRegistrationOptions { defaultEnabled?: boolean }
+
+declare module '@deepseek-ai/dsh-session' {
+  interface SessionEventMap {
+    'superharness/pack-selected': {
+      packId: string
+      version: string
+      bindings: PackResourceBinding[]
+    }
+  }
+}
 
 function record(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -178,6 +211,8 @@ export function parsePackManifest(value: unknown): PackManifest {
       ...(typeof asset.dialect === 'string' ? { dialect: asset.dialect } : {}),
       adapters: stringList(asset.adapters, `assets[${index}].adapters`),
       ...(typeof asset.portable === 'boolean' ? { portable: asset.portable } : {}),
+      access: asset.access === 'mutate' ? 'mutate' : 'read',
+      approval: asset.approval === 'required' ? 'required' : 'none',
     }
   })
   if (new Set(parsedAssets.map(asset => asset.id)).size !== parsedAssets.length) throw new Error('asset ids must be unique')
@@ -209,6 +244,7 @@ export function parsePackManifest(value: unknown): PackManifest {
     },
     requires,
     provides: stringList(source.provides, 'provides'),
+    contributesTo: stringList(source.contributesTo, 'contributesTo'),
     resourceSlots,
     assets: parsedAssets,
   }
@@ -239,12 +275,15 @@ function resolveAssetPath(root: string, asset: PackAsset): string {
 }
 
 /** Registry for installed industry packs and their explicitly exported assets. */
-export default class SuperHarnessPackRegistry extends Service {
-  static inject = ['tools']
+export default class SuperHarnessPackRegistry extends TypertRemoteService {
+  static inject = ['tools', 'agents', 'systemPrompt']
   static Config = Config
 
   private readonly packs = new Map<string, RegisteredPack>()
+  private readonly defaults = new Map<string, boolean>()
   private readonly maxAssetBytes: number
+  private readonly statePath: string
+  private state: PersistedPackState
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'hyperlakePacks')
@@ -252,6 +291,15 @@ export default class SuperHarnessPackRegistry extends Service {
     if (!Number.isSafeInteger(this.maxAssetBytes) || this.maxAssetBytes < 1) {
       throw new Error('maxAssetBytes must be a positive safe integer')
     }
+    this.statePath = config.statePath?.trim() === '' || config.statePath === undefined
+      ? dshHomePath('hyperlake-packs.json')
+      : resolve(config.statePath)
+    this.state = this.readState()
+    ctx.effect(() => ctx.systemPrompt.section({
+      name: 'superharness:selected-pack',
+      order: 170,
+      text: assembly => this.promptFor(assembly),
+    }), 'hyperlake-packs.selected-prompt')
     ctx.effect(() => ctx.tools.register(this.listTool()), 'hyperlake-packs.list-tool')
     ctx.effect(() => ctx.tools.register(this.describeTool()), 'hyperlake-packs.describe-tool')
     ctx.effect(() => ctx.tools.register(this.validateTool()), 'hyperlake-packs.validate-tool')
@@ -259,11 +307,52 @@ export default class SuperHarnessPackRegistry extends Service {
   }
 
   /** Register one validated pack for the calling plugin's effect lifetime. */
-  register(pack: RegisteredPack): () => void {
+  register(pack: RegisteredPack, options: PackRegistrationOptions = {}): () => void {
     const id = pack.manifest.metadata.id
     if (this.packs.has(id)) throw new Error(`SuperHarness pack ${JSON.stringify(id)} is already registered`)
     this.packs.set(id, pack)
-    return () => { this.packs.delete(id) }
+    this.defaults.set(id, options.defaultEnabled === true)
+    return () => { this.packs.delete(id); this.defaults.delete(id) }
+  }
+
+  private readState(): PersistedPackState {
+    try {
+      const value = JSON.parse(readFileSync(this.statePath, 'utf8')) as unknown
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('state must be an object')
+      const source = value as Record<string, unknown>
+      const enabledSource = typeof source.enabled === 'object' && source.enabled !== null && !Array.isArray(source.enabled)
+        ? source.enabled as Record<string, unknown> : {}
+      const bindingsSource = typeof source.bindings === 'object' && source.bindings !== null && !Array.isArray(source.bindings)
+        ? source.bindings as Record<string, unknown> : {}
+      const enabled = Object.fromEntries(Object.entries(enabledSource).filter(([, item]) => typeof item === 'boolean')) as Record<string, boolean>
+      const bindings: Record<string, PackResourceBinding[]> = {}
+      for (const [packId, items] of Object.entries(bindingsSource)) {
+        if (!Array.isArray(items)) continue
+        const accepted = items.filter((item): item is PackResourceBinding => {
+          if (typeof item !== 'object' || item === null || Array.isArray(item)) return false
+          const binding = item as Record<string, unknown>
+          return typeof binding.slotId === 'string' && binding.slotId.trim() !== ''
+            && typeof binding.resourceType === 'string' && binding.resourceType.trim() !== ''
+            && typeof binding.resourceId === 'string' && binding.resourceId.trim() !== ''
+        }).map(item => ({ slotId: item.slotId.trim(), resourceType: item.resourceType.trim(), resourceId: item.resourceId.trim() }))
+        bindings[packId] = accepted
+      }
+      return { enabled, bindings }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') this.ctx.logger.warn(`ignoring invalid pack state: ${String(error)}`)
+      return { enabled: {}, bindings: {} }
+    }
+  }
+
+  private persist(): void {
+    mkdirSync(dirname(this.statePath), { recursive: true })
+    const temporary = `${this.statePath}.${process.pid}.tmp`
+    writeFileSync(temporary, `${JSON.stringify(this.state, null, 2)}\n`, { mode: 0o600 })
+    renameSync(temporary, this.statePath)
+  }
+
+  private enabled(id: string): boolean {
+    return this.state.enabled[id] ?? this.defaults.get(id) ?? false
   }
 
   /** Stable summaries for all registered packs. */
@@ -290,7 +379,7 @@ export default class SuperHarnessPackRegistry extends Service {
   validate(id: string, bindings: PackResourceBinding[] = []): PackValidationResult {
     const pack = this.get(id)
     const issues: string[] = []
-    const installed = [...this.packs.values()].map(item => item.manifest)
+    const installed = [...this.packs.values()].filter(item => this.enabled(item.manifest.metadata.id)).map(item => item.manifest)
     const installedIds = new Set(installed.map(item => item.metadata.id))
     const installedAdapters = installed
       .filter(item => item.metadata.category === 'adapter')
@@ -300,11 +389,19 @@ export default class SuperHarnessPackRegistry extends Service {
     const bySlot = new Map<string, PackResourceBinding>()
 
     for (const binding of bindings) {
+      if (binding.slotId.trim() === '' || binding.resourceType.trim() === '' || binding.resourceId.trim() === '') {
+        issues.push('resource bindings require non-empty slotId, resourceType, and resourceId')
+        continue
+      }
       if (bySlot.has(binding.slotId)) issues.push(`resource slot ${JSON.stringify(binding.slotId)} is bound more than once`)
       bySlot.set(binding.slotId, binding)
     }
     for (const requiredPack of pack.manifest.requires?.packs ?? []) {
       if (!installedIds.has(requiredPack)) issues.push(`required pack ${JSON.stringify(requiredPack)} is not installed`)
+    }
+    for (const target of pack.manifest.contributesTo ?? []) {
+      if (!this.packs.has(target)) issues.push(`contribution target ${JSON.stringify(target)} is not installed`)
+      if (target === id) issues.push('a pack cannot contribute to itself')
     }
     for (const capability of pack.manifest.requires?.capabilities ?? []) {
       if (!capabilities.has(capability)) issues.push(`required capability ${JSON.stringify(capability)} is unavailable`)
@@ -328,6 +425,100 @@ export default class SuperHarnessPackRegistry extends Service {
     return { packId: id, valid: issues.length === 0, installedAdapters, bindings, issues }
   }
 
+  private entry(id: string): PackCatalogEntry {
+    const { manifest } = this.get(id)
+    const bindings = this.state.bindings[id] ?? []
+    const validation = this.validate(id, bindings)
+    return {
+      id, version: manifest.metadata.version, category: manifest.metadata.category,
+      name: manifest.metadata.name, description: manifest.metadata.description,
+      installed: true, enabled: this.enabled(id), ready: this.enabled(id) && validation.valid,
+      contributesTo: manifest.contributesTo ?? [], provides: manifest.provides ?? [],
+      requiresPacks: manifest.requires?.packs ?? [],
+      requiresCapabilities: manifest.requires?.capabilities ?? [],
+      acceptedAdapters: manifest.requires?.oneOfAdapters ?? [],
+      resourceSlots: manifest.resourceSlots ?? [], bindings,
+      assets: (manifest.assets ?? []).map(asset => ({
+        id: asset.id, type: asset.type, description: asset.description,
+        ...(asset.dialect === undefined ? {} : { dialect: asset.dialect }),
+        ...(asset.portable === undefined ? {} : { portable: asset.portable }),
+        access: asset.access ?? 'read', approval: asset.approval ?? 'none',
+      })),
+      issues: validation.issues,
+    }
+  }
+
+  /** Complete lifecycle projection consumed by Web and other trusted clients. */
+  @Remote('catalog')
+  catalog(): PackCatalogSnapshot {
+    return { entries: this.list().map(item => this.entry(item.id)) }
+  }
+
+  /** Enable or disable one installed, allowlisted pack. */
+  @Remote('setEnabled')
+  setEnabled(request: PackSetEnabledRequest): PackOperationResult {
+    this.get(request.packId)
+    this.state.enabled[request.packId] = request.enabled
+    this.persist()
+    return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
+  }
+
+  /** Replace non-secret resource references for one pack. */
+  @Remote('configure')
+  configure(request: PackConfigureRequest): PackOperationResult {
+    const bindings = request.bindings.map(binding => ({
+      slotId: binding.slotId.trim(), resourceType: binding.resourceType.trim(), resourceId: binding.resourceId.trim(),
+    }))
+    const validation = this.validate(request.packId, bindings)
+    const structural = validation.issues.filter(issue => !issue.startsWith('required pack ') && !issue.startsWith('required capability ') && !issue.startsWith('install one compatible adapter'))
+    if (structural.some(issue => !issue.startsWith('required resource slot '))) {
+      return { ok: false, packId: request.packId, message: structural.join('; ') }
+    }
+    this.state.bindings[request.packId] = bindings
+    this.persist()
+    return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
+  }
+
+  /** Select a ready pack for a blank session and record immutable provenance. */
+  @Remote('select')
+  select(request: PackSelectRequest): PackSelectionResult {
+    const pack = this.get(request.packId)
+    const entry = this.entry(request.packId)
+    if (!entry.enabled) return { ok: false, packId: request.packId, sessionId: request.sessionId, message: 'Enable this capability first.' }
+    if (!entry.ready) return { ok: false, packId: request.packId, sessionId: request.sessionId, message: entry.issues.join('; ') }
+    const agent = this.ctx.agents.get(request.sessionId as SessionId)
+    if (agent === undefined) return { ok: false, packId: request.packId, sessionId: request.sessionId, message: 'The target session is not active.' }
+    if (agent.session.events.some(event => event.type === 'turn/start')) {
+      return { ok: false, packId: request.packId, sessionId: request.sessionId, message: 'Capabilities can only be selected before the first turn.' }
+    }
+    agent.session.append('superharness/pack-selected', {
+      packId: request.packId,
+      version: pack.manifest.metadata.version,
+      bindings: entry.bindings.map(binding => ({ ...binding })),
+    })
+    return { ok: true, packId: request.packId, sessionId: request.sessionId, version: pack.manifest.metadata.version }
+  }
+
+  private promptFor(context: AssembleContext): string {
+    const agent = context.scope as Agent | undefined
+    if (agent?.session === undefined) return ''
+    const selected = agent.session.events.findLast(event => event.type === 'superharness/pack-selected')
+    if (selected?.type !== 'superharness/pack-selected') return ''
+    const pack = this.packs.get(selected.data.packId)
+    if (pack === undefined || pack.manifest.metadata.version !== selected.data.version) return ''
+    const contributions = [...this.packs.values()]
+      .filter(item => this.enabled(item.manifest.metadata.id) && item.manifest.contributesTo?.includes(selected.data.packId))
+    const assets = [pack, ...contributions].flatMap(item => item.manifest.assets ?? [])
+    const approval = assets.some(asset => asset.access === 'mutate' || asset.approval === 'required')
+      ? 'Mutating actions require the platform approval flow before execution.' : ''
+    return [
+      `Active Hyperlake capability: ${pack.manifest.metadata.name} (${selected.data.packId}@${selected.data.version}).`,
+      `Authorized resource bindings: ${JSON.stringify(selected.data.bindings)}.`,
+      'Use only these bindings. Inspect exported routines, models, evaluations, and references before acting.',
+      approval,
+    ].filter(Boolean).join(' ')
+  }
+
   private listTool() {
     return defineTool({
       name: 'superharness_pack_list',
@@ -347,7 +538,7 @@ export default class SuperHarnessPackRegistry extends Service {
         },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
-      execute: () => Promise.resolve(this.list()),
+      execute: () => Promise.resolve(this.list().filter(item => this.enabled(item.id))),
     })
   }
 
@@ -360,7 +551,10 @@ export default class SuperHarnessPackRegistry extends Service {
         schema: { type: 'string' },
         render: (_args, value) => [{ type: 'text', text: value }],
       },
-      execute: args => Promise.resolve(JSON.stringify(this.get(args.pack_id).manifest, null, 2)),
+      execute: (args) => {
+        if (!this.enabled(args.pack_id)) throw new Error(`SuperHarness pack ${JSON.stringify(args.pack_id)} is disabled`)
+        return Promise.resolve(JSON.stringify(this.get(args.pack_id).manifest, null, 2))
+      },
     })
   }
 
@@ -429,6 +623,7 @@ export default class SuperHarnessPackRegistry extends Service {
         render: (_args, value) => [{ type: 'text', text: value.content }],
       },
       execute: (args) => {
+        if (!this.enabled(args.pack_id)) throw new Error(`SuperHarness pack ${JSON.stringify(args.pack_id)} is disabled`)
         const pack = this.get(args.pack_id)
         const asset = pack.manifest.assets?.find(candidate => candidate.id === args.asset_id)
         if (!asset) throw new Error(`asset ${JSON.stringify(args.asset_id)} is not exported by pack ${JSON.stringify(args.pack_id)}`)
@@ -448,6 +643,6 @@ export default class SuperHarnessPackRegistry extends Service {
 }
 
 /** Register a pack directory for the lifetime of the calling pack plugin. */
-export function registerPackDirectory(ctx: Context, root: string): () => void {
-  return ctx.hyperlakePacks.register(loadPackDirectory(root))
+export function registerPackDirectory(ctx: Context, root: string, options?: PackRegistrationOptions): () => void {
+  return ctx.hyperlakePacks.register(loadPackDirectory(root), options)
 }

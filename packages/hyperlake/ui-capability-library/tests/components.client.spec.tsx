@@ -1,80 +1,82 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  CapabilityHome, CapabilityLibrary, type CapabilityLibraryInjected, type CapabilityLibraryProps,
-} from '../src/client/CapabilityLibrary.tsx'
+import type { PackCatalogSnapshot } from '@cerebrixos/superharness-packs/types'
+import { CapabilityHome, CapabilityLibrary, type CapabilityLibraryInjected, type CapabilityLibraryProps } from '../src/client/CapabilityLibrary.tsx'
 import { en, type CapabilityLibraryLocaleKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
-
-type Snapshot = Awaited<ReturnType<CapabilityLibraryInjected['list']>>
 const t = (key: CapabilityLibraryLocaleKey): string => en[key]
 
-function props(list: CapabilityLibraryInjected['list']): CapabilityLibraryProps {
-  return { t, list } as unknown as CapabilityLibraryProps
+const SNAPSHOT: PackCatalogSnapshot = { entries: [
+  {
+    id: 'data-engineering', version: '1.0.0', category: 'capability', name: 'Data Engineering',
+    description: 'Governed data engineering.', installed: true, enabled: true, ready: true,
+    contributesTo: [], provides: ['data-modeling'], requiresPacks: [], requiresCapabilities: [], acceptedAdapters: [],
+    resourceSlots: [{ id: 'data-environment', types: ['governed-data-environment'], required: true, description: 'Authorized data environment.' }],
+    bindings: [{ slotId: 'data-environment', resourceType: 'governed-data-environment', resourceId: 'resource-1' }],
+    assets: [{ id: 'build-silver', type: 'routine', description: 'Build a silver model.', access: 'mutate', approval: 'required' }], issues: [],
+  },
+  {
+    id: 'life-sciences-research', version: '1.0.0', category: 'solution', name: 'Life Sciences Research',
+    description: 'Clinical research accelerator.', installed: true, enabled: false, ready: false,
+    contributesTo: ['data-engineering'], provides: ['clinical-analysis'], requiresPacks: ['data-engineering'], requiresCapabilities: [], acceptedAdapters: [],
+    resourceSlots: [], bindings: [], assets: [], issues: [],
+  },
+] }
+
+function props(overrides: Partial<CapabilityLibraryInjected> = {}): CapabilityLibraryProps {
+  const injected: CapabilityLibraryInjected = {
+    catalog: vi.fn().mockResolvedValue(SNAPSHOT),
+    setEnabled: vi.fn().mockResolvedValue({ ok: true, packId: 'life-sciences-research' }),
+    configure: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
+    select: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering', sessionId: 'session-1' }),
+    ...overrides,
+  }
+  return {
+    t, ...injected,
+    useSessions: (selector: (value: unknown) => unknown) => selector({ current: 'session-1', ids: ['session-1'], byId: { 'session-1': { id: 'session-1', blank: true } }, phase: 'ready', subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined }),
+  } as unknown as CapabilityLibraryProps
 }
 
-const SNAPSHOT = {
-  entries: [
-    {
-      entryId: 'data-engineering', moduleName: '@cerebrixos/superharness-pack-data-engineering',
-      enabled: true, fiberPhase: 'active',
-    },
-    {
-      entryId: 'hyperlake', moduleName: '@cerebrixos/superharness-adapter-hyperlake',
-      enabled: true, fiberPhase: 'active',
-    },
-  ],
-} as unknown as Snapshot
-
 describe('CapabilityLibrary', () => {
-  it('shows outcomes first and implementation providers only through resource status', async () => {
-    render(<CapabilityLibrary {...props(async () => SNAPSHOT)} />)
-
-    const capability = await screen.findByRole('button', { name: /Data Engineering/ })
-    expect(capability.textContent).toContain('Enabled')
-    expect(screen.getByText('Governed data access')).toBeTruthy()
-    expect(screen.getByText('Metadata and lineage')).toBeTruthy()
-    expect(screen.getByText('Logs and metrics')).toBeTruthy()
-    expect(screen.getAllByText('Available')).toHaveLength(3)
-    expect(screen.getAllByText(/Supported/)).toHaveLength(2)
-    expect(screen.queryByText('Trino')).toBeNull()
-    expect(screen.queryByText('dbt')).toBeNull()
+  it('shows readiness, lifecycle actions, details, and approval metadata', async () => {
+    render(<CapabilityLibrary {...props()} />)
+    expect(await screen.findByText('Data Engineering')).toBeTruthy()
+    expect(screen.getByText('Ready')).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: 'Assets' }))
+    expect(screen.getByText('build-silver')).toBeTruthy()
+    expect(screen.getByText('Approval required')).toBeTruthy()
   })
 
-  it('distinguishes an available solution from an enabled capability', async () => {
-    render(<CapabilityLibrary {...props(async () => SNAPSHOT)} />)
-    const solution = await screen.findByRole('button', { name: /Life Sciences Research/ })
-    expect(solution.textContent).toContain('Not enabled')
-    fireEvent.click(solution)
-    expect(screen.getByText('Clinical data environment')).toBeTruthy()
+  it('enables a shipped solution through the typed lifecycle remote', async () => {
+    const setEnabled = vi.fn().mockResolvedValue({ ok: true, packId: 'life-sciences-research' })
+    render(<CapabilityLibrary {...props({ setEnabled })} />)
+    await screen.findByText('Life Sciences Research')
+    fireEvent.click(screen.getByRole('button', { name: 'Enable' }))
+    expect(setEnabled).toHaveBeenCalledWith({ packId: 'life-sciences-research', enabled: true })
   })
 
-  it('shows both packs compactly on the new-session home', async () => {
-    render(<CapabilityHome {...props(async () => SNAPSHOT)} />)
+  it('selects a ready pack for the current blank conversation', async () => {
+    const select = vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering', sessionId: 'session-1' })
+    render(<CapabilityLibrary {...props({ select })} />)
+    await screen.findByText('Data Engineering')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Use' })[0]!)
+    expect(select).toHaveBeenCalledWith({ sessionId: 'session-1', packId: 'data-engineering' })
+  })
+
+  it('shows packs compactly on the new-session home', async () => {
+    render(<CapabilityHome {...props()} />)
     expect(await screen.findByText('Capability packs')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Data Engineering/ }).getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByRole('button', { name: /Life Sciences Research/ }).getAttribute('aria-expanded')).toBe('false')
     expect(document.querySelector('[data-surface="home"]')).toBeTruthy()
   })
 
-  it('contains inventory failures and retries', async () => {
-    const list = vi.fn<CapabilityLibraryInjected['list']>()
-      .mockRejectedValueOnce(new Error('private transport detail'))
-      .mockResolvedValueOnce(SNAPSHOT)
-    render(<CapabilityLibrary {...props(list)} />)
+  it('contains catalog failures and retries', async () => {
+    const catalog = vi.fn().mockRejectedValueOnce(new Error('private detail')).mockResolvedValueOnce(SNAPSHOT)
+    render(<CapabilityLibrary {...props({ catalog })} />)
     expect((await screen.findByRole('alert')).textContent).toBe(en.error)
-    expect(screen.queryByText('private transport detail')).toBeNull()
+    expect(screen.queryByText('private detail')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.retry }))
-    expect(await screen.findByRole('button', { name: /Data Engineering/ })).toBeTruthy()
-    expect(list).toHaveBeenCalledTimes(2)
-  })
-
-  it('ignores a completed inventory read after unmount', async () => {
-    const deferred = Promise.withResolvers<Snapshot>()
-    const view = render(<CapabilityLibrary {...props(() => deferred.promise)} />)
-    view.unmount()
-    await act(async () => { deferred.resolve(SNAPSHOT) })
+    expect(await screen.findByText('Data Engineering')).toBeTruthy()
   })
 })

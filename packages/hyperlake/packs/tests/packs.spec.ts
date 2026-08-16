@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import { CallId } from '@deepseek-ai/dsh-llm'
+import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -48,18 +49,21 @@ assets:
   return root
 }
 
-async function harness() {
+async function harness(agentFor: (id: string) => unknown = () => undefined) {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
-  await ctx.plugin(SuperHarnessPackRegistry)
+  ctx.provide('agents', { get: agentFor } as never)
+  const stateRoot = mkdtempSync(join(tmpdir(), 'superharness-state-'))
+  roots.push(stateRoot)
+  await ctx.plugin(SuperHarnessPackRegistry, { statePath: join(stateRoot, 'packs.json') })
   return ctx
 }
 
 describe('SuperHarness pack registry', () => {
   it('registers one pack and exposes deterministic discovery and asset reads', async () => {
     const ctx = await harness()
-    const dispose = ctx.hyperlakePacks.register(loadPackDirectory(fixture()))
+    const dispose = ctx.hyperlakePacks.register(loadPackDirectory(fixture()), { defaultEnabled: true })
 
     expect(ctx.hyperlakePacks.list()).toEqual([{
       id: 'data-engineering', version: '1.0.0', category: 'capability',
@@ -83,9 +87,39 @@ describe('SuperHarness pack registry', () => {
     expect(() => ctx.hyperlakePacks.register(first)).toThrow(/already registered/)
   })
 
-  it('distinguishes an installed pack from a fully bound, runnable pack', async () => {
+  it('persists lifecycle configuration and scopes prompt context to the selected blank session', async () => {
+    const session = Session.create(SessionId('session-pack'))
+    const agent = { session }
+    const ctx = await harness(id => id === 'session-pack' ? agent : undefined)
+    ctx.hyperlakePacks.register(loadPackDirectory(fixture()), { defaultEnabled: true })
+
+    expect(ctx.hyperlakePacks.configure({ packId: 'data-engineering', bindings: [{
+      slotId: 'analytical-engine', resourceType: 'hyperlake-cluster', resourceId: 'cluster-123',
+    }] })).toMatchObject({ ok: true, entry: { ready: true } })
+    expect(ctx.hyperlakePacks.select({ sessionId: 'session-pack', packId: 'data-engineering' })).toMatchObject({
+      ok: true, version: '1.0.0',
+    })
+    expect(session.events.at(-1)).toMatchObject({
+      type: 'superharness/pack-selected',
+      data: { packId: 'data-engineering', version: '1.0.0', bindings: [{ resourceId: 'cluster-123' }] },
+    })
+    const prompt = await ctx.systemPrompt.assemble({ scope: agent })
+    expect(prompt.sections.find(section => section.name === 'superharness:selected-pack')?.text).toContain('cluster-123')
+  })
+
+  it('hides disabled pack assets from model-facing tools', async () => {
     const ctx = await harness()
     ctx.hyperlakePacks.register(loadPackDirectory(fixture()))
+    const result = await ctx.tools.execute({
+      signal, callId: CallId('read-disabled'), name: 'superharness_pack_asset_read',
+      arguments: { pack_id: 'data-engineering', asset_id: 'model' },
+    })
+    expect(result.isError).toBe(true)
+  })
+
+  it('distinguishes an installed pack from a fully bound, runnable pack', async () => {
+    const ctx = await harness()
+    ctx.hyperlakePacks.register(loadPackDirectory(fixture()), { defaultEnabled: true })
 
     expect(ctx.hyperlakePacks.validate('data-engineering')).toMatchObject({
       valid: false,
@@ -106,7 +140,7 @@ describe('SuperHarness pack registry', () => {
     const ctx = await harness()
     for (const directory of ['adapter-hyperlake', 'pack-data-engineering', 'solution-life-sciences']) {
       const root = fileURLToPath(new URL(`../../${directory}/`, import.meta.url))
-      ctx.hyperlakePacks.register(loadPackDirectory(root))
+      ctx.hyperlakePacks.register(loadPackDirectory(root), { defaultEnabled: true })
     }
 
     expect(ctx.hyperlakePacks.validate('data-engineering', [{

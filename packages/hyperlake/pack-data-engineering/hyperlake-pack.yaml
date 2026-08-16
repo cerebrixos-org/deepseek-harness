@@ -40,10 +40,14 @@ assets:
     dialect: ansi-sql
     adapters: [hyperlake, databricks]
     portable: true
+    access: mutate
+    approval: required
   - id: build-silver-layer
     type: routine
     path: assets/routines/build_silver_layer.yaml
     description: Governed procedure for inspecting, proposing, applying, and verifying a silver-layer model.
+    access: mutate
+    approval: required
   - id: maintain-data-freshness
     type: goal
     path: assets/goals/maintain_data_freshness.yaml

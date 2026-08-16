@@ -24,6 +24,7 @@
   "dependencies": {
     "@cerebrixos/superharness-packs": "workspace:^",
     "@cerebrixos/superharness-pack-data-engineering": "workspace:^",
+    "@cerebrixos/superharness-solution-life-sciences": "workspace:^",
     "@cerebrixos/superharness-ui-capability-library": "workspace:^"
   },
   "peerDependencies": {

@@ -19,6 +19,8 @@ provides:
   - clinical-data-models
   - clinical-study-analysis
   - regulated-output-evaluation
+contributesTo:
+  - data-engineering
 resourceSlots:
   - id: clinical-data-environment
     types: [hyperlake-query-resource, governed-data-environment]
@@ -36,6 +38,8 @@ assets:
     dialect: spark-sql
     adapters: [databricks]
     portable: false
+    access: mutate
+    approval: required
   - id: clinical-study-analysis
     type: routine
     path: assets/routines/clinical_study_analysis.yaml

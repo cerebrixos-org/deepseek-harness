@@ -4,6 +4,7 @@
   "include": ["src"],
   "references": [
     { "path": "../../../vendor/cordis" },
+    { "path": "../packs" },
     { "path": "../../api/remotes/tsconfig.client.json" },
     { "path": "../../client/locale" },
     { "path": "../../client/runtime" },
