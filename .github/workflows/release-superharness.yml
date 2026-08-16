@@ -1,0 +1,67 @@
+# Publish the independently versioned Hyperlake SuperHarness package family.
+# npm authenticates this workflow through short-lived OIDC credentials; no
+# registry token is stored in GitHub.
+name: Release (SuperHarness)
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the verified SuperHarness tarballs to npm.
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: Release-superharness-publish
+  cancel-in-progress: false
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  publish:
+    name: Verify and publish to npm
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Use an npm CLI with trusted-publishing support
+        run: npm install --global npm@11.5.1
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify release family
+        run: pnpm run release:verify --family superharness
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Pack release tarballs
+        run: pnpm run release:pack --family superharness --out dist/npm
+
+      - name: Verify packed install
+        run: pnpm run release:verify-packed-install --family superharness --from dist/npm
+
+      - name: Publish tarballs
+        run: pnpm run release:publish --family superharness --from dist/npm
