@@ -5,6 +5,31 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+.providerField {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+.providerSelect {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+}
+
+.failure {
+  margin: 10px 0 0;
+  color: var(--dsw-alias-label-error);
+  font-size: 13px;
+}
+
 .editor {
   margin-top: 24px;
 }

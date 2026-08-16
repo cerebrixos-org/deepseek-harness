@@ -223,11 +223,9 @@ export type OnboardingReadiness =
 
 /**
  * Project first-run readiness from the provider/settings/credential join used
- * by the Models page. The step exists to leave the user with a model to talk
- * to, so ANY usable provider ends it; only when none exists does the official
- * DeepSeek route — the one route the prompt can offer a key field for — decide
- * whether prompting can help. A missing official configurable-provider
- * declaration means the adapter is not repairable by navigating to Models.
+ * by the Models page. Any usable provider ends onboarding. Otherwise the step
+ * can configure any writable provider exposed by an installed adapter, rather
+ * than privileging one model vendor.
  * @param state - current shared Models join snapshot.
  * @returns the onboarding state without reading a parallel fact source.
  */
@@ -242,20 +240,11 @@ export function onboardingReadiness(state: ModelsSettingsState): OnboardingReadi
     }
   }
   if (state.rows.some(providerUsable)) return { kind: 'provider-ready' }
-  const row = state.rows.find(candidate =>
-    candidate.entry.provider === 'deepseek-official'
-    && candidate.entry.settingsNs === 'llm-deepseek'
-    && candidate.entry.settingsPath.length === 0)
-  if (row === undefined) return { kind: 'adapter-absent' }
-  if (!row.entry.active) {
-    return {
-      kind: 'unavailable',
-      reason: 'provider-inactive',
-    }
-  }
-  // Past the usable gate an active route names a reference it has no stored
-  // credential for, so the remaining questions are all about that credential.
-  if (state.credentialError !== null || row.credential === undefined) {
+  const candidates = state.rows.filter(candidate =>
+    candidate.entry.settingsNs.length > 0
+    && state.namespaces.has(candidate.entry.settingsNs))
+  if (candidates.length === 0) return { kind: 'adapter-absent' }
+  if (state.credentialError !== null) {
     return {
       kind: 'unavailable',
       reason: 'credentials-unavailable',
@@ -267,7 +256,9 @@ export function onboardingReadiness(state: ModelsSettingsState): OnboardingReadi
       reason: 'settings-read-only',
     }
   }
-  if (!row.credential.writable) {
+  const configuredCandidates = candidates.filter(candidate => candidate.apiKeyEnv !== undefined)
+  if (configuredCandidates.length > 0
+    && configuredCandidates.every(candidate => candidate.credential?.writable === false)) {
     return {
       kind: 'unavailable',
       reason: 'credential-read-only',

@@ -673,3 +673,14 @@ select.input {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+
+@media (max-width: 560px) {
+  .editorActions {
+    flex-direction: column-reverse;
+  }
+
+  .editorActions .primaryButton,
+  .editorActions .secondaryButton {
+    width: 100%;
+  }
+}
