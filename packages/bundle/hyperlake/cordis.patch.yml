@@ -1,0 +1,7 @@
+# Hyperlake SuperHarness runtime services. Industry, adapter, and solution
+# packs install as later bundle layers and register with this service.
+- insert:
+    - id: superharness-packs
+      name: '@hyperlake/superharness-packs'
+      config:
+        maxAssetBytes: 1048576

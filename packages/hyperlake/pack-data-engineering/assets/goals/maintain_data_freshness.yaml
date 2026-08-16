@@ -1,0 +1,15 @@
+apiVersion: goals.hyperlake.cloud/v1alpha1
+kind: Goal
+metadata:
+  id: maintain-data-freshness
+spec:
+  successCriteria:
+    - metric: freshness_minutes
+      operator: less_than
+      value: 30
+  observe:
+    capability: sql.query
+    resourceSlot: analytical-engine
+  allowedRoutines:
+    - investigate-pipeline-failure
+  interval: 15m

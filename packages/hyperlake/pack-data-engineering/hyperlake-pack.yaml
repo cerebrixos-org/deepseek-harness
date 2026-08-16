@@ -1,0 +1,53 @@
+apiVersion: packs.hyperlake.cloud/v1alpha1
+kind: SuperHarnessPack
+metadata:
+  id: data-engineering
+  version: 0.1.0
+  category: capability
+  name: Data Engineering
+  description: Reusable bronze, silver, pipeline, schema-drift, quality, and deployment procedures for customer-controlled data platforms.
+requires:
+  capabilities:
+    - catalog.inspect
+    - sql.query
+  oneOfAdapters:
+    - hyperlake
+    - databricks
+provides:
+  - data-model.inspect
+  - data-model.render
+  - pipeline.investigate
+  - data-quality.verify
+resourceSlots:
+  - id: analytical-engine
+    types: [hyperlake-cluster, databricks-workspace]
+    required: true
+    description: Customer engine used to inspect catalogs and execute compatible SQL assets.
+  - id: model-repository
+    types: [git-repository, local-directory]
+    required: false
+    description: Customer-controlled repository containing deployed data definitions.
+assets:
+  - id: silver-orders-ddl
+    type: ddl
+    path: assets/ddl/silver_orders.sql
+    description: Portable example DDL for a typed and deduplicated silver orders table.
+    dialect: ansi-sql
+    adapters: [hyperlake, databricks]
+    portable: true
+  - id: build-silver-layer
+    type: routine
+    path: assets/routines/build_silver_layer.yaml
+    description: Governed procedure for inspecting, proposing, applying, and verifying a silver-layer model.
+  - id: maintain-data-freshness
+    type: goal
+    path: assets/goals/maintain_data_freshness.yaml
+    description: Goal template with deterministic freshness success criteria.
+  - id: sql-safety-evaluation
+    type: evaluation
+    path: assets/evaluations/sql_safety.yaml
+    description: Evaluation requiring adapter compatibility, read-only inspection, approval for mutation, and post-action verification.
+  - id: data-engineering-skill
+    type: reference
+    path: skills/data-engineering/SKILL.md
+    description: Full operating guidance for governed data-engineering tasks.

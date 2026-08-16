@@ -1,0 +1,16 @@
+apiVersion: packs.hyperlake.cloud/v1alpha1
+kind: SuperHarnessPack
+metadata:
+  id: hyperlake
+  version: 0.1.0
+  category: adapter
+  name: Hyperlake
+  description: Existing Hyperlake CLI and MCP capabilities for governed infrastructure, application, and data operations.
+provides:
+  - catalog.inspect
+  - sql.query
+  - observability.query
+  - semantic.query
+  - workflow.run
+resourceSlots: []
+assets: []

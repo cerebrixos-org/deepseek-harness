@@ -1,0 +1,11 @@
+apiVersion: evaluations.hyperlake.cloud/v1alpha1
+kind: Evaluation
+metadata:
+  id: regulated-output
+spec:
+  assertions:
+    - source_assets_cited
+    - query_is_read_only
+    - aggregation_recomputed
+    - no_unauthorized_row_level_disclosure
+    - adapter_matches_asset_dialect

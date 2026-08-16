@@ -152,6 +152,12 @@ describe('loadProfile', () => {
     // cannot be asserted to fail here: the source-plane test runner resolves
     // @deepseek-ai/* through tsconfig paths regardless of the staged anchor.
     expect(PROFILE_TEMPLATES.web).toContain('@deepseek-ai/dsh-base')
+    expect(PROFILE_TEMPLATES.hyperlake).toEqual([
+      '@deepseek-ai/dsh-base',
+      '@deepseek-ai/dsh-web-app',
+      '@hyperlake/superharness-base',
+      '@hyperlake/superharness-adapter-hyperlake',
+    ])
     try {
       loadProfile('t', 'web', anchor, home)
     } catch {
