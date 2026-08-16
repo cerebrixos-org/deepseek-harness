@@ -114,6 +114,12 @@ export function resolveProfileDir(name: string, home: string = resolveDshHome())
 export const PROFILE_TEMPLATES: Record<string, readonly string[]> = {
   web: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
   headless: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless'],
+  hyperlake: [
+    '@deepseek-ai/dsh-base',
+    '@deepseek-ai/dsh-web-app',
+    '@cerebrixos/superharness-base',
+    '@cerebrixos/superharness-adapter-hyperlake',
+  ],
 }
 
 /** Installation-owned bundle tuples normalized to the shipped template. */

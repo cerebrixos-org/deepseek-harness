@@ -1,0 +1,21 @@
+apiVersion: routines.hyperlake.cloud/v1alpha1
+kind: Routine
+metadata:
+  id: build-silver-layer
+spec:
+  inputs: [source, target, business_key]
+  steps:
+    - action: catalog.inspect
+      resourceSlot: data-environment
+    - action: pack.asset.read
+      asset: silver-orders-ddl
+    - action: repository.propose-change
+      resourceSlot: model-repository
+      approval: required
+    - action: sql.execute
+      resourceSlot: data-environment
+      approval: required
+    - verify: data-quality.verify
+  limits:
+    maxAttempts: 2
+    maxRuntimeMinutes: 30

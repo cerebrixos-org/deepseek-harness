@@ -48,6 +48,7 @@ const FIRST_PARTY = new Set([
 
 /** Official SDK identity covered by the project's narrow owner authorization. */
 export const CLAUDE_AGENT_SDK_PACKAGE = '@anthropic-ai/claude-agent-sdk'
+export const HYPERLAKE_CLI_PACKAGE = '@cerebrixos/hyperlake'
 const CLAUDE_PLATFORM_PACKAGE_PREFIX = `${CLAUDE_AGENT_SDK_PACKAGE}-`
 const CLAUDE_PLATFORM_DECLARED_LICENSE = 'SEE LICENSE IN LICENSE.md'
 
@@ -55,10 +56,10 @@ const CLAUDE_PLATFORM_DECLARED_LICENSE = 'SEE LICENSE IN LICENSE.md'
  * Whether a non-permissive runtime declaration has an identity-scoped owner
  * authorization. This does not reclassify its terms as permissive.
  * @param name - exact npm package identity.
- * @returns true only for the official Claude Agent SDK package.
+ * @returns true only for an explicitly reviewed owner-distributed runtime.
  */
 export function isOwnerAuthorizedRuntime(name: string): boolean {
-  return name === CLAUDE_AGENT_SDK_PACKAGE
+  return name === CLAUDE_AGENT_SDK_PACKAGE || name === HYPERLAKE_CLI_PACKAGE
 }
 
 /**
@@ -708,6 +709,8 @@ ${vendored.map(row => `| \`${row.npmName}\` | \`${row.upstreamName}\` | [${row.u
 ## Runtime npm dependencies
 
 External packages that a workspace package resolves at runtime. The tier covers every plugin a user can mount from \`cordis.yml\` — not only what the \`dsh\` CLI, Web UI, and Python SDK runtime load by default.
+
+The project owner authorizes distribution of the exact \`${HYPERLAKE_CLI_PACKAGE}\` dependency used by Hyperlake SuperHarness. This identity-scoped authorization does not classify its proprietary terms as permissive and does not cover unrelated packages or versions absent from the lockfile.
 
 ${renderNpmTable(runtimeDeps)}
 

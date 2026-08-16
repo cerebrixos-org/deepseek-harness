@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** First-run DeepSeek prompt behavior over the shared Models join. */
+/** First-run provider prompt behavior over the shared Models join. */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Schema from '@deepseek-ai/schemastery'
@@ -76,6 +76,10 @@ function harness(options: {
   const configured = options.configured ?? (() => fileConfigured)
   const apiKeyEnv = options.apiKeyEnv === undefined ? 'DEEPSEEK_API_KEY' : options.apiKeyEnv
   const mutate = vi.fn(() => Promise.resolve(ok(deepSeekNamespace(apiKeyEnv))))
+  const replace = vi.fn(() => Promise.resolve(ok({})))
+  const selectModel = vi.fn(() => Promise.resolve(ok({
+    selected: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+  })))
   const set = vi.fn((_payload: { ref: string; value: string }) => {
     if (options.setReject !== undefined) return Promise.reject(new Error(options.setReject))
     if (options.setFailure !== undefined) return Promise.resolve(fail(options.setFailure))
@@ -98,6 +102,14 @@ function harness(options: {
             }],
         }))
       },
+      models: () => Promise.resolve(ok({
+        groups: [{
+          id: 'deepseek-official',
+          name: 'DeepSeek',
+          models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' }],
+        }],
+        failures: [],
+      })),
     },
     settings: {
       describe: () => Promise.resolve(ok({
@@ -106,6 +118,7 @@ function harness(options: {
         namespaces: options.settingsNamespace === false ? [] : [deepSeekNamespace(apiKeyEnv)],
       })),
       mutate,
+      replace,
     },
     credentials: {
       describe: () => options.describeFailure === undefined
@@ -123,16 +136,19 @@ function harness(options: {
         : Promise.resolve(fail(options.describeFailure)),
       set,
     },
+    sessions: { selectModel },
   }
   const controller = new ModelsSettingsStore(face as never)
   const openSection = vi.fn()
   const complete = vi.fn()
+  const useSessions = ((selector: (state: { current: string }) => unknown) =>
+    selector({ current: 'session-1' })) as never
   const unusedHook = (() => { throw new Error('unused standard hook') }) as never
   const props: DeepSeekOnboardingDialogProps = {
-    stepId: 'deepseek-official',
+    stepId: 'model-provider',
     complete,
     openSection,
-    useSessions: unusedHook,
+    useSessions,
     useWorkspaces: unusedHook,
     controller,
     useModels: bindSnapshotSelector(controller.store),
@@ -140,7 +156,7 @@ function harness(options: {
     t: key => en[key],
   }
   return {
-    controller, complete, openSection, props, mutate, set,
+    controller, complete, openSection, props, mutate, replace, selectModel, set,
     configure: () => { fileConfigured = true },
   }
 }
@@ -153,15 +169,35 @@ describe('DeepSeekOnboardingDialog', () => {
     expect(await screen.findByRole('dialog', { name: en.onboardingTitle })).toBeTruthy()
   })
 
-  it('loads a credential-only modal, inerts the product, and focuses the key', async () => {
+  it('loads the provider chooser, inerts the product, and focuses the key', async () => {
     const h = harness()
     render(<DeepSeekOnboardingDialog {...h.props} />)
     expect(await screen.findByRole('dialog', { name: en.onboardingTitle })).toBeTruthy()
     expect(document.getElementById('root')?.inert).toBe(true)
     expect(screen.getByText(en.onboardingDescription)).toBeTruthy()
+    const provider = screen.getByRole<HTMLSelectElement>('combobox', { name: en.provider })
+    expect(provider.value).toBe('deepseek-official')
+    expect(provider.selectedOptions[0]?.textContent).toBe('DeepSeek (official)')
     const key = screen.getByLabelText<HTMLInputElement>(en.keyInput)
     await waitFor(() => { expect(document.activeElement).toBe(key) })
-    expect(screen.queryByText(en.customized)).toBeNull()
+    expect(screen.getByText(en.customized)).toBeTruthy()
+  })
+
+  it('stores the key, selects the first available model, and completes once', async () => {
+    const h = harness()
+    render(<DeepSeekOnboardingDialog {...h.props} />)
+    await screen.findByRole('dialog')
+    fireEvent.change(screen.getByLabelText(en.keyInput), { target: { value: 'sk-live' } })
+    fireEvent.click(screen.getByRole('button', { name: en.onboardingSave }))
+    await waitFor(() => { expect(h.complete).toHaveBeenCalledOnce() })
+    expect(h.set).toHaveBeenCalledWith({ ref: 'DEEPSEEK_API_KEY', value: 'sk-live' })
+    expect(h.replace).toHaveBeenCalledWith({
+      ns: 'agent-default-model',
+      section: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+    })
+    expect(h.selectModel).toHaveBeenCalledWith({
+      sessionId: 'session-1', provider: 'deepseek-official', model: 'deepseek-v4-flash',
+    })
   })
 
   it('cannot be dismissed implicitly and restores the previous inert state', async () => {
@@ -228,7 +264,6 @@ describe('DeepSeekOnboardingDialog', () => {
       harness({ credential: { writable: false } }),
       harness({ settingsWritable: false }),
       harness({ providersReject: true }),
-      harness({ providerActive: false }),
       harness({ settingsNamespace: false }),
       harness({ apiKeyEnv: null }),
     ]) {

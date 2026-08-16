@@ -1,0 +1,50 @@
+apiVersion: packs.hyperlake.cloud/v1alpha1
+kind: SuperHarnessPack
+metadata:
+  id: life-sciences-research
+  version: 0.1.0
+  category: solution
+  name: Life Sciences Research
+  description: Example industry accelerator combining reusable data engineering with clinical research models and governed procedures.
+requires:
+  packs:
+    - data-engineering
+  capabilities:
+    - governed-data-access
+    - metadata-discovery
+  oneOfAdapters:
+    - hyperlake
+    - databricks
+provides:
+  - clinical-data-models
+  - clinical-study-analysis
+  - regulated-output-evaluation
+contributesTo:
+  - data-engineering
+resourceSlots:
+  - id: clinical-data-environment
+    types: [hyperlake-query-resource, governed-data-environment]
+    required: true
+    description: Governed customer environment containing authorized clinical research data.
+  - id: clinical-model-repository
+    types: [git-repository, local-directory]
+    required: false
+    description: Repository containing the customer's deployed clinical model definitions.
+assets:
+  - id: clinical-study-silver-ddl
+    type: ddl
+    path: assets/ddl/clinical_study_silver.sql
+    description: Spark SQL example for a normalized clinical-study silver table.
+    dialect: spark-sql
+    adapters: [databricks]
+    portable: false
+    access: mutate
+    approval: required
+  - id: clinical-study-analysis
+    type: routine
+    path: assets/routines/clinical_study_analysis.yaml
+    description: Read-only clinical-study analysis procedure with explicit provenance and aggregation checks.
+  - id: regulated-output
+    type: evaluation
+    path: assets/evaluations/regulated_output.yaml
+    description: Evaluation requiring source citation, aggregation verification, and absence of unauthorized row-level disclosure.

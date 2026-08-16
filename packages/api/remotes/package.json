@@ -58,6 +58,7 @@
     "@deepseek-ai/dsh-typert-protocol": "workspace:^"
   },
   "peerDependencies": {
+    "@cerebrixos/superharness-packs": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-api-gateway": "workspace:^",
@@ -76,6 +77,7 @@
     "@deepseek-ai/dsh-typert-registry": "workspace:^"
   },
   "devDependencies": {
+    "@cerebrixos/superharness-packs": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-api-gateway": "workspace:^",
     "@deepseek-ai/dsh-commands": "workspace:^",

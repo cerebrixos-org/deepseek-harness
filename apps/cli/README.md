@@ -1,47 +1,33 @@
-# `@deepseek-ai/dsh`
+# Hyperlake SuperHarness
 
 English | [中文](README.zh.md)
 
-The `dsh` command is the product launcher for profiles: ordered stacks of plugin-bundle patch layers under the user's own overrides. [`src/args.ts`](src/args.ts) owns the command grammar, and [`src/bin.ts`](src/bin.ts) loads only the selected runner. Invalid commands, options from another mode, configuration errors, and boot failures exit nonzero.
+Hyperlake SuperHarness is a local AI harness for governed infrastructure and data work. It mounts the Hyperlake CLI's MCP tools into a composable runtime for conversations, approvals, goals, jobs, skills, capability packs, and industry solution packs.
 
-## Entry modes
-
-| Command | Purpose |
-|---|---|
-| `dsh --profile <name>` | Boot the named profile under `$DSH_HOME/profiles/<name>`. |
-| `dsh --profile headless "job"` | Run one fresh persisted session, print the final answer, and exit. |
-| `dsh web` | Alias of `--profile web`. |
-| `dsh plugin --profile <name> <pnpm args>` | Manage a profile's plugins by forwarding to pnpm in the profile directory. |
-
-The invoking directory is the default workspace root. The `web` and `headless` profiles auto-initialize on first use from shipped templates; any other profile must be created through `dsh plugin`.
-
-## App arguments
-
-The launcher parses only its own flags and hands everything after them to the booted profile, where any injected app plugin may parse the shared immutable snapshot ([`dsh-cmdline`](../../packages/boot/cmdline/README.md)). Launcher flags therefore come first, and the first token the launcher does not recognize starts the app's arguments:
+## Run
 
 ```sh
-dsh --profile web --port 8080       # --port belongs to the web app
-dsh --profile tui --resume <id>     # example, assuming the tui profile is installed; --resume belongs to the terminal app
-dsh --profile headless "run the tests"
-dsh --profile web --help            # the web app's flags, not the launcher's
-dsh --help                          # the launcher's own help
+npx @cerebrixos/hyperlake-superharness
 ```
 
-## Profiles
+The default `hyperlake` profile starts the local web experience and the bundled Hyperlake MCP server. The package depends on an exact `@cerebrixos/hyperlake` release, so it does not depend on an arbitrary global executable.
 
-A profile directory holds a `package.json` (out-of-tree plugin dependencies plus the profile manifest `dsh.profile` with its ordered `bundles` list) and a `cordis.patch.yml` (the user's own patch layer).
+Existing Hyperlake authentication remains in the CLI's secure local configuration. Pack manifests carry opaque resource references and requirements; they do not contain customer credentials.
 
-The tree composes over an empty root:
-- each bundle's patch in `dsh.profile.bundles` order
-- then the profile's `cordis.patch.yml`, then the home-level `$DSH_HOME/cordis.patch.yml`
-- then `--patch` overlays
+Set `SUPERHARNESS_HYPERLAKE_DISABLED=1` to inspect the profile without starting MCP:
 
-Bundles named in `dsh.profile.bundles` resolve from the dsh installation first (`@deepseek-ai/dsh-base`, `@deepseek-ai/dsh-web-app`, `@deepseek-ai/dsh-headless`), then from the profile's own `node_modules`, where pnpm installs out-of-tree plugins.
+```sh
+SUPERHARNESS_HYPERLAKE_DISABLED=1 npx @cerebrixos/hyperlake-superharness --dump-default-config
+```
 
-Use `--dump-default-config` and `--dump-config` to inspect the composed tree without booting it.
+Use an explicit profile to access the underlying Harness profiles:
 
-The [CLI behavior reference](reference/README.md) owns exact layer precedence, flags, shutdown behavior, deployment defaults, and source execution.
+```sh
+npx @cerebrixos/hyperlake-superharness --profile headless "inspect platform health"
+```
 
-## Development
+## Capability Packs
 
-Production runs require built package and frontend artifacts. From the repository root, run `pnpm run build` separately, then use `pnpm dsh <args...>` to run the TypeScript entry and forward every argument; the [source-execution reference](reference/README.md#source-execution) owns the module-resolution contract.
+The included Data Engineering pack provides deterministic routines, skills, evaluations, and assets. Packs declare required capabilities and typed resource slots, while adapters expose existing governed tool surfaces. The included Life Sciences package demonstrates how a domain solution composes the horizontal capability without receiving direct access to credentials or repositories.
+
+Pack validation proves composition readiness; authorization, policy checks, and approvals remain authoritative at the connected Hyperlake resource.

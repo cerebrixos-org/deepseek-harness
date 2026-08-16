@@ -3,12 +3,14 @@
  * dsh — command-line entry. Dynamic imports per mode keep unrelated modes out
  * of each dispatch path; the adapter prints and exits for
  * `--help`/`--version`/a parse error, so only a valid mode reaches the switch.
- * @module @deepseek-ai/dsh/bin
+ * @module @cerebrixos/hyperlake-superharness/bin
  */
 
 /* v8 ignore file -- built-bin acceptance exercises this self-executing dispatch. */
 
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadLayeredEnv } from '@deepseek-ai/dsh-app-boot'
 import { parseDshArgs } from './args.ts'
@@ -24,7 +26,32 @@ function readVersion(): string {
   return typeof manifest.version === 'string' ? manifest.version : '0.0.0'
 }
 
-const invocation = parseDshArgs(process.argv.slice(2), readVersion())
+/** Prefer the exact native CLI distributed with this npm package. */
+function configureBundledHyperlake(): void {
+  if (process.env['SUPERHARNESS_HYPERLAKE_COMMAND'] !== undefined) return
+  try {
+    const manifest = createRequire(import.meta.url).resolve('@cerebrixos/hyperlake/package.json')
+    process.env['SUPERHARNESS_HYPERLAKE_COMMAND'] = process.execPath
+    process.env['SUPERHARNESS_HYPERLAKE_SCRIPT'] = join(dirname(manifest), 'bin', 'cli.js')
+  } catch {
+    // Source checkouts may deliberately exercise a separately installed CLI.
+  }
+}
+
+/** Boot the Hyperlake profile unless the caller selected another launcher mode. */
+function defaultProfileArgs(args: string[]): string[] {
+  const first = args[0]
+  if (args.includes('--profile') || first === 'plugin') return args
+  if (first === '-h' || first === '--help' || first === '-V' || first === '--version') return args
+  // This distribution's `web` shorthand is the Hyperlake product surface,
+  // not the unbranded upstream web profile. Explicit --profile web remains
+  // available for framework diagnostics.
+  if (first === 'web') return ['--profile', 'hyperlake', ...args.slice(1)]
+  return ['--profile', 'hyperlake', ...args]
+}
+
+configureBundledHyperlake()
+const invocation = parseDshArgs(defaultProfileArgs(process.argv.slice(2)), readVersion())
 
 switch (invocation.mode) {
   case 'profile': {

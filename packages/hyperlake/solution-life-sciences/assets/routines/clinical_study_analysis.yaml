@@ -1,0 +1,14 @@
+apiVersion: routines.hyperlake.cloud/v1alpha1
+kind: Routine
+metadata:
+  id: clinical-study-analysis
+spec:
+  steps:
+    - action: catalog.inspect
+      resourceSlot: clinical-data-environment
+    - action: sql.query
+      resourceSlot: clinical-data-environment
+      constraints: [read-only, aggregate-before-disclosure]
+    - verify: regulated-output
+  outputs:
+    requireSourceProvenance: true

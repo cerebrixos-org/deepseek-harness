@@ -1,0 +1,16 @@
+apiVersion: packs.hyperlake.cloud/v1alpha1
+kind: SuperHarnessPack
+metadata:
+  id: databricks
+  version: 0.1.0
+  category: adapter
+  name: Databricks
+  description: Customer-configured Databricks SQL, Jobs, notebooks, catalog, and workspace operations exposed through MCP.
+provides:
+  - governed-data-access
+  - metadata-discovery
+  - transformation-execution
+  - notebook-execution
+  - workflow-execution
+resourceSlots: []
+assets: []

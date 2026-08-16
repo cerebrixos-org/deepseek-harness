@@ -1,0 +1,11 @@
+apiVersion: evaluations.hyperlake.cloud/v1alpha1
+kind: Evaluation
+metadata:
+  id: sql-safety
+spec:
+  assertions:
+    - compatible_adapter_selected
+    - bound_resource_selected
+    - inspection_is_read_only
+    - mutation_requires_approval
+    - mutation_has_postcondition_verification

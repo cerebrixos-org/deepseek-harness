@@ -1,22 +1,67 @@
 /**
- * Official-DeepSeek first-run step. Readiness comes from the same
- * provider/settings/credential join as the Models page: any provider the user
- * can already talk to ends the step, and only a user with none is offered the
- * official DeepSeek route. The step reuses that page's credential editor in
- * the onboarding plugin's shared modal, so the key is entered once.
+ * Provider-neutral first-run step. Readiness comes from the same
+ * provider/settings/credential join as the Models page. A user with no usable
+ * provider chooses any route exposed by the installed adapters, stores its
+ * credential once, and starts with that route's first available model.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ModelsSettingsState, ModelsSettingsStore } from './store.ts'
+import type { ModelsSettingsState, ModelsSettingsStore, ProviderRow } from './store.ts'
 import { onboardingReadiness } from './store.ts'
 import { ProviderEditor } from './ProviderEditor.tsx'
 import type { en } from './locales.ts'
 import { OnboardingModal } from './OnboardingModal.tsx'
 import styles from './DeepSeekOnboardingDialog.module.css'
+
+type CurrentSessionId = Parameters<IApiClient['sessions']['selectModel']>[0]['sessionId']
+
+const PROVIDER_LABELS: Readonly<Record<string, string>> = {
+  'amazon-bedrock': 'Amazon Bedrock',
+  'ant-ling': 'Ant Ling',
+  anthropic: 'Anthropic',
+  'azure-openai-responses': 'Azure OpenAI',
+  cerebras: 'Cerebras',
+  'cloudflare-ai-gateway': 'Cloudflare AI Gateway',
+  'cloudflare-workers-ai': 'Cloudflare Workers AI',
+  deepseek: 'DeepSeek',
+  'deepseek-official': 'DeepSeek (official)',
+  fireworks: 'Fireworks AI',
+  'github-copilot': 'GitHub Copilot',
+  google: 'Google AI',
+  'google-vertex': 'Google Vertex AI',
+  groq: 'Groq',
+  huggingface: 'Hugging Face',
+  'kimi-coding': 'Kimi Coding',
+  minimax: 'MiniMax',
+  'minimax-cn': 'MiniMax (China)',
+  mistral: 'Mistral AI',
+  moonshotai: 'Moonshot AI',
+  'moonshotai-cn': 'Moonshot AI (China)',
+  nvidia: 'NVIDIA',
+  openai: 'OpenAI',
+  opencode: 'OpenCode',
+  'opencode-go': 'OpenCode Go',
+  openrouter: 'OpenRouter',
+  'qwen-token-plan': 'Qwen Token Plan',
+  'qwen-token-plan-cn': 'Qwen Token Plan (China)',
+  together: 'Together AI',
+  'vercel-ai-gateway': 'Vercel AI Gateway',
+  xai: 'xAI',
+  xiaomi: 'Xiaomi',
+  'xiaomi-token-plan-ams': 'Xiaomi Token Plan (Amsterdam)',
+  'xiaomi-token-plan-cn': 'Xiaomi Token Plan (China)',
+  'xiaomi-token-plan-sgp': 'Xiaomi Token Plan (Singapore)',
+  zai: 'Z.ai',
+  'zai-coding-cn': 'Z.ai Coding (China)',
+}
+
+function providerLabel(row: ProviderRow): string {
+  return PROVIDER_LABELS[row.entry.provider] ?? row.entry.displayName
+}
 
 /** Registration-side dependencies of {@link DeepSeekOnboardingDialog}. */
 export interface DeepSeekOnboardingInjected {
@@ -27,7 +72,7 @@ export interface DeepSeekOnboardingInjected {
   /** Shared Models-page join controller. */
   controller: ModelsSettingsStore
   /** Existing wire face reused by the Models credential editor. */
-  api: Pick<IApiClient, 'settings' | 'credentials' | 'llm'>
+  api: Pick<IApiClient, 'settings' | 'credentials' | 'llm' | 'sessions'>
   /** Feature copy. */
   t: (key: keyof typeof en) => string
 }
@@ -42,15 +87,23 @@ function assertNever(_value: never): never {
 }
 
 /**
- * Prompt a first-run user for the official DeepSeek credential while no
- * provider can serve requests and that credential is writable.
+ * Prompt a first-run user to choose and configure any supported provider.
  * @param props - settings-shell owner state and Models feature dependencies.
  * @returns the onboarding modal or null when onboarding needs no intervention.
  */
 export function DeepSeekOnboardingDialog(props: DeepSeekOnboardingDialogProps): ReactNode {
-  const { complete, controller, useModels, api, t } = props
+  const { complete, controller, useModels, useSessions, api, t } = props
   const state = useModels(snapshot => snapshot)
+  const currentSession = useSessions(snapshot => snapshot.current)
   const readiness = onboardingReadiness(state)
+  const candidates = useMemo(() => state.rows.filter(candidate =>
+    candidate.entry.settingsNs.length > 0
+    && state.namespaces.has(candidate.entry.settingsNs)), [state.namespaces, state.rows])
+  const [selectedProvider, setSelectedProvider] = useState<string | undefined>(undefined)
+  const [finishing, setFinishing] = useState(false)
+  const [failure, setFailure] = useState<string | undefined>(undefined)
+  const selected = candidates.find(candidate => candidate.entry.provider === selectedProvider)
+    ?? candidates[0]
 
   useEffect(() => {
     if (state.status === 'idle') void controller.load()
@@ -59,7 +112,7 @@ export function DeepSeekOnboardingDialog(props: DeepSeekOnboardingDialogProps): 
   useEffect(() => {
     if (
       readiness.kind === 'adapter-absent'
-      || readiness.kind === 'provider-ready'
+      || (readiness.kind === 'provider-ready' && !finishing)
       || readiness.kind === 'unavailable'
     ) complete()
   }, [complete, readiness.kind])
@@ -77,42 +130,77 @@ export function DeepSeekOnboardingDialog(props: DeepSeekOnboardingDialogProps): 
       return assertNever(readiness)
   }
 
-  const row = state.rows.find(candidate =>
-    candidate.entry.provider === 'deepseek-official'
-    && candidate.entry.settingsNs === 'llm-deepseek'
-    && candidate.entry.settingsPath.length === 0)
-  const namespace = state.namespaces.get('llm-deepseek')
-  /* v8 ignore next 2 -- credential-missing is derived only from this exact joined row. */
-  if (row === undefined || namespace === undefined) return null
+  if (selected === undefined) return null
+  const namespace = state.namespaces.get(selected.entry.settingsNs)
+  /* v8 ignore next -- candidates are derived from rows with a resolved namespace. */
+  if (namespace === undefined) return null
 
-  const finishCredential = (changed: boolean): void => {
+  const finishCredential = (changed: boolean, row: ProviderRow, sessionId: CurrentSessionId | undefined): void => {
     if (!changed) {
       complete()
       return
     }
-    void controller.load()
+    setFinishing(true)
+    setFailure(undefined)
+    void controller.load().then(async () => {
+      const catalog = await api.llm.models({})
+      if (!catalog.result.ok) throw new Error(catalog.result.error.message)
+      const group = catalog.result.value.groups.find(candidate => candidate.id === row.entry.provider)
+      const model = group?.models[0]
+      if (model === undefined) throw new Error(t('onboardingNoModels'))
+      const selection = { provider: row.entry.provider, model: model.id }
+      const saved = await api.settings.replace({ ns: 'agent-default-model', section: selection })
+      if (!saved.result.ok) throw new Error(saved.result.error.message)
+      if (sessionId !== undefined) {
+        const sessionSelection = await api.sessions.selectModel({ sessionId, ...selection })
+        if (!sessionSelection.result.ok) throw new Error(sessionSelection.result.error.message)
+      }
+      complete()
+    }).catch((error: unknown) => {
+      setFailure(error instanceof Error ? error.message : String(error))
+    }).finally(() => { setFinishing(false) })
   }
 
   return (
     <OnboardingModal title={t('onboardingTitle')}>
       <p className={styles.description}>{t('onboardingDescription')}</p>
+      <label className={styles.providerField}>
+        <span>{t('provider')}</span>
+        <select
+          className={styles.providerSelect}
+          value={selected.entry.provider}
+          disabled={finishing}
+          onChange={(event) => {
+            setSelectedProvider(event.target.value)
+            setFailure(undefined)
+          }}
+        >
+          {candidates.map(candidate => (
+            <option key={candidate.entry.provider} value={candidate.entry.provider}>
+              {providerLabel(candidate)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {failure === undefined ? null : <p className={styles.failure} role="alert">{failure}</p>}
       <div className={styles.editor}>
         <ProviderEditor
-          provider={row.entry.provider}
-          displayName={row.entry.displayName}
+          key={selected.entry.provider}
+          provider={selected.entry.provider}
+          displayName={selected.entry.displayName}
           namespace={namespace}
-          settingsPath={row.entry.settingsPath}
+          settingsPath={selected.entry.settingsPath}
+          {...selected.entry.declared === true ? { declared: true } : {}}
           api={api}
           t={t}
-          readOnly={false}
+          readOnly={finishing}
           hideTitle
-          credentialOnly
           credentialRequired
           autoFocusCredential
           cancelLabel="onboardingLater"
           submitLabel="onboardingSave"
           submitBusyLabel="onboardingSaving"
-          onClose={finishCredential}
+          onClose={(changed) => { finishCredential(changed, selected, currentSession) }}
         />
       </div>
     </OnboardingModal>

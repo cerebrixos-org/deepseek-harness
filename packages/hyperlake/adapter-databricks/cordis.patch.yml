@@ -1,0 +1,16 @@
+# The customer supplies an MCP command and its local credential environment.
+# Without a command, only adapter metadata is registered and no process starts.
+- insert:
+    - id: superharness-adapter-databricks-pack
+      name: '@cerebrixos/superharness-adapter-databricks'
+
+    - id: superharness-databricks-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      disabled: !!js (!process.env.SUPERHARNESS_DATABRICKS_MCP_COMMAND)
+      config:
+        serverName: databricks
+        transport: stdio
+        command: !!js process.env.SUPERHARNESS_DATABRICKS_MCP_COMMAND || 'databricks-mcp'
+        args: !!js JSON.parse(process.env.SUPERHARNESS_DATABRICKS_MCP_ARGS || '[]')
+        failOnStartupError: true
+        toolCallTimeoutMs: 120000

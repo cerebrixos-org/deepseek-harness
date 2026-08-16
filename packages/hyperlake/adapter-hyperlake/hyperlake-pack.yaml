@@ -1,0 +1,19 @@
+apiVersion: packs.hyperlake.cloud/v1alpha1
+kind: SuperHarnessPack
+metadata:
+  id: hyperlake
+  version: 0.1.0
+  category: adapter
+  name: Hyperlake
+  description: Governed access to customer data, metadata, lineage, observability, policy, applications, and platform resources through the existing Hyperlake CLI and MCP.
+provides:
+  - governed-data-access
+  - metadata-discovery
+  - lineage-inspection
+  - observability
+  - semantic-access
+  - policy-enforcement
+  - workflow-execution
+  - application-management
+resourceSlots: []
+assets: []
