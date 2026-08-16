@@ -7,7 +7,7 @@ import { CallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { afterEach, describe, expect, it } from 'vitest'
-import SuperHarnessPackRegistry, { loadPackDirectory } from '@hyperlake/superharness-packs'
+import SuperHarnessPackRegistry, { loadPackDirectory } from '@cerebrixos/superharness-packs'
 
 const roots: string[] = []
 const signal = new AbortController().signal

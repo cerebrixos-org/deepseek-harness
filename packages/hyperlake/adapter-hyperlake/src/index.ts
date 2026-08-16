@@ -1,7 +1,7 @@
-/** Hyperlake CLI MCP adapter pack registration. @module @hyperlake/superharness-adapter-hyperlake */
+/** Hyperlake CLI MCP adapter pack registration. @module @cerebrixos/superharness-adapter-hyperlake */
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
-import { registerPackDirectory } from '@hyperlake/superharness-packs'
+import { registerPackDirectory } from '@cerebrixos/superharness-packs'
 
 /** Cordis plugin name. */
 export const name = 'superharness-adapter-hyperlake'

@@ -1,4 +1,6 @@
-# `@hyperlake/superharness-base`
+# `@cerebrixos/superharness-base`
+
+English | [中文](README.zh.md)
 
 This bundle adds the portable Hyperlake pack registry, the Data Engineering capability, and the read-only Capability Library to a DeepSeek Harness profile. It stores no credentials. The profile layer adds the Hyperlake adapter that supplies governed access to customer resources.
 
@@ -8,7 +10,7 @@ This bundle adds the portable Hyperlake pack registry, the Data Engineering capa
 
 #### What the model sees
 
-The fixed discovery, validation, and asset tools contributed by `@hyperlake/superharness-packs`, plus the concise Data Engineering operating guidance. The Capability Library itself contributes no model input.
+The fixed discovery, validation, and asset tools contributed by `@cerebrixos/superharness-packs`, plus the concise Data Engineering operating guidance. The Capability Library itself contributes no model input.
 
 #### Token effect
 

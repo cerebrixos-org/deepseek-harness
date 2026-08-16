@@ -1,4 +1,4 @@
-/** Package invariant companion for the Hyperlake SuperHarness bundle. @module @hyperlake/superharness-base/invariant */
+/** Package invariant companion for the Hyperlake SuperHarness bundle. @module @cerebrixos/superharness-base/invariant */
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
@@ -10,4 +10,4 @@ export const inject = ['invariants']
 const install: InvariantInstaller = () => {}
 /** Register the package-owned invariant companion. */
 export const apply = (ctx: Context): Promise<() => void> =>
-  Promise.resolve(ctx.invariants.register('@hyperlake/superharness-base', install))
+  Promise.resolve(ctx.invariants.register('@cerebrixos/superharness-base', install))

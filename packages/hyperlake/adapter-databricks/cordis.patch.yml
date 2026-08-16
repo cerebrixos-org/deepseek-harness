@@ -2,7 +2,7 @@
 # Without a command, only adapter metadata is registered and no process starts.
 - insert:
     - id: superharness-adapter-databricks-pack
-      name: '@hyperlake/superharness-adapter-databricks'
+      name: '@cerebrixos/superharness-adapter-databricks'
 
     - id: superharness-databricks-mcp
       name: '@deepseek-ai/dsh-mcp-client'

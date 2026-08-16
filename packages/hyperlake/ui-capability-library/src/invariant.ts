@@ -1,9 +1,9 @@
-/** Package-owned invariant companion. @module @hyperlake/superharness-ui-capability-library/invariant */
+/** Package-owned invariant companion. @module @cerebrixos/superharness-ui-capability-library/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@hyperlake/superharness-ui-capability-library'
+const PACKAGE_NAME = '@cerebrixos/superharness-ui-capability-library'
 
 /** Cordis companion plugin name. */
 export const name = 'superharness-ui-capability-library-invariant'

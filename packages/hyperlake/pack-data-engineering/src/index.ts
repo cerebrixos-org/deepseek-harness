@@ -1,7 +1,7 @@
-/** Data-engineering capability pack registration. @module @hyperlake/superharness-pack-data-engineering */
+/** Data-engineering capability pack registration. @module @cerebrixos/superharness-pack-data-engineering */
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
-import { registerPackDirectory } from '@hyperlake/superharness-packs'
+import { registerPackDirectory } from '@cerebrixos/superharness-packs'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
 /** Cordis plugin name. */

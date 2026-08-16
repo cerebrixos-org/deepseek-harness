@@ -70,6 +70,9 @@ export abstract class ReleaseFamily {
   /** Workflow-facing identifier, also the `--family` argument. */
   abstract readonly id: string
 
+  /** npm scope owned by this release sequence. */
+  abstract readonly packageScope: string
+
   /** Glob patterns, relative to the repository root, that select this family's manifests. */
   abstract readonly patterns: readonly string[]
 
@@ -93,7 +96,7 @@ export abstract class ReleaseFamily {
       const name = requireString(manifest, 'name', normalized)
       const version = requireString(manifest, 'version', normalized)
       if (name === WORKSPACE_ROOT_PACKAGE) throw new Error(`${normalized} selected the workspace root`)
-      if (!name.startsWith('@deepseek-ai/')) throw new Error(`${normalized} must name an @deepseek-ai package`)
+      if (!name.startsWith(this.packageScope)) continue
       if (seen.has(name)) throw new Error(`${name} appears twice in release family ${this.id}`)
       seen.add(name)
       members.push({
@@ -196,6 +199,7 @@ export abstract class ReleaseFamily {
 /** `packages/*` and `apps/*`: one shared version across the whole family. */
 class DshFamily extends ReleaseFamily {
   readonly id = 'dsh'
+  readonly packageScope = '@deepseek-ai/'
   readonly patterns = ['packages/*/*/package.json', 'apps/*/package.json'] as const
   readonly tagPrefix = 'dsh-v'
 
@@ -231,9 +235,43 @@ class DshFamily extends ReleaseFamily {
   readonly installedEntry = { packageName: '@deepseek-ai/dsh', binPath: 'lib/bin.js' }
 }
 
+/** Hyperlake extensions and executable: one independently publishable version. */
+class SuperHarnessFamily extends ReleaseFamily {
+  readonly id = 'superharness'
+  readonly packageScope = '@cerebrixos/'
+  readonly patterns = [
+    'apps/cli/package.json',
+    'packages/bundle/hyperlake/package.json',
+    'packages/hyperlake/*/package.json',
+  ] as const
+  readonly tagPrefix = 'superharness-v'
+
+  verifyVersions(members: readonly ReleaseMember[]): void {
+    const versions = new Set(members.map(member => member.version))
+    if (versions.size !== 1) {
+      const detail = members.map(member => `${member.directory}: ${member.version}`).join('\n')
+      throw new Error(`superharness release members must share one version:\n${detail}`)
+    }
+  }
+
+  tagPrefixFor(): string {
+    return this.tagPrefix
+  }
+
+  validatePayload(member: ReleaseMember, files: readonly string[]): void {
+    validateTarballPayload(files, member.name)
+  }
+
+  readonly installedEntry = {
+    packageName: '@cerebrixos/hyperlake-superharness',
+    binPath: 'lib/bin.js',
+  }
+}
+
 /** `vendor/*`: every package keeps its own version line, so every package has its own tag. */
 class VendorFamily extends ReleaseFamily {
   readonly id = 'vendor'
+  readonly packageScope = '@deepseek-ai/'
   readonly patterns = ['vendor/*/package.json'] as const
   readonly tagPrefix = 'vendor-'
 
@@ -280,7 +318,7 @@ class VendorFamily extends ReleaseFamily {
 
 /** Every release family this module owns, in workflow order. */
 function releaseFamilies(): readonly ReleaseFamily[] {
-  return [new DshFamily(), new VendorFamily()]
+  return [new DshFamily(), new SuperHarnessFamily(), new VendorFamily()]
 }
 
 /**

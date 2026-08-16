@@ -1,4 +1,6 @@
-# `@hyperlake/superharness-pack-data-engineering`
+# `@cerebrixos/superharness-pack-data-engineering`
+
+English | [中文](README.zh.md)
 
 This native DeepSeek/Cordis bundle plugin is the reusable data-engineering capability layer beneath industry solution packs. It exports a sample silver-layer DDL, a governed build routine, a freshness goal template, a SQL-safety evaluation, and operating guidance through the shared deterministic pack tools.
 

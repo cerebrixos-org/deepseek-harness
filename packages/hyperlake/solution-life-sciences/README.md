@@ -1,4 +1,6 @@
-# `@hyperlake/superharness-solution-life-sciences`
+# `@cerebrixos/superharness-solution-life-sciences`
+
+English | [中文](README.zh.md)
 
 This example solution bundle demonstrates a Databricks-style industry accelerator assembled as a native SuperHarness plugin. It depends on the reusable data-engineering pack, accepts Hyperlake or Databricks for portable operations, and marks its Spark SQL/Delta DDL as Databricks-only instead of silently translating it.
 

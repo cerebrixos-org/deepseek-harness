@@ -155,8 +155,8 @@ describe('loadProfile', () => {
     expect(PROFILE_TEMPLATES.hyperlake).toEqual([
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
-      '@hyperlake/superharness-base',
-      '@hyperlake/superharness-adapter-hyperlake',
+      '@cerebrixos/superharness-base',
+      '@cerebrixos/superharness-adapter-hyperlake',
     ])
     try {
       loadProfile('t', 'web', anchor, home)

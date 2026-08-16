@@ -1,11 +1,11 @@
 {
-  "name": "@hyperlake/superharness-base",
+  "name": "@cerebrixos/superharness-base",
   "description": "Hyperlake SuperHarness profile bundle",
   "version": "0.1.0",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "url": "git+https://github.com/cerebrixos-org/deepseek-harness.git",
     "directory": "packages/bundle/hyperlake"
   },
   "type": "module",
@@ -22,9 +22,9 @@
   "license": "MIT",
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
   "dependencies": {
-    "@hyperlake/superharness-packs": "workspace:^",
-    "@hyperlake/superharness-pack-data-engineering": "workspace:^",
-    "@hyperlake/superharness-ui-capability-library": "workspace:^"
+    "@cerebrixos/superharness-packs": "workspace:^",
+    "@cerebrixos/superharness-pack-data-engineering": "workspace:^",
+    "@cerebrixos/superharness-ui-capability-library": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",

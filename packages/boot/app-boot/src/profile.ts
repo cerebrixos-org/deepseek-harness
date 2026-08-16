@@ -117,8 +117,8 @@ export const PROFILE_TEMPLATES: Record<string, readonly string[]> = {
   hyperlake: [
     '@deepseek-ai/dsh-base',
     '@deepseek-ai/dsh-web-app',
-    '@hyperlake/superharness-base',
-    '@hyperlake/superharness-adapter-hyperlake',
+    '@cerebrixos/superharness-base',
+    '@cerebrixos/superharness-adapter-hyperlake',
   ],
 }
 

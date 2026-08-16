@@ -1,6 +1,6 @@
 /**
  * Package invariant companion for the SuperHarness pack registry.
- * @module @hyperlake/superharness-packs/invariant
+ * @module @cerebrixos/superharness-packs/invariant
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -20,4 +20,4 @@ const install: InvariantInstaller = () => {}
  * the registry relationships without inspecting private service state.
  */
 export const apply = (ctx: Context): Promise<() => void> =>
-  Promise.resolve(ctx.invariants.register('@hyperlake/superharness-packs', install))
+  Promise.resolve(ctx.invariants.register('@cerebrixos/superharness-packs', install))

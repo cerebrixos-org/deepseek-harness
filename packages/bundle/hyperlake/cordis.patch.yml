@@ -1,12 +1,12 @@
 # Hyperlake SuperHarness runtime and first-party capability library.
 - insert:
     - id: superharness-packs
-      name: '@hyperlake/superharness-packs'
+      name: '@cerebrixos/superharness-packs'
       config:
         maxAssetBytes: 1048576
 
     - id: superharness-pack-data-engineering
-      name: '@hyperlake/superharness-pack-data-engineering'
+      name: '@cerebrixos/superharness-pack-data-engineering'
 
     - id: superharness-capability-library-ui
-      name: '@hyperlake/superharness-ui-capability-library'
+      name: '@cerebrixos/superharness-ui-capability-library'

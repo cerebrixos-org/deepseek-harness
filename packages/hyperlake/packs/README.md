@@ -1,4 +1,6 @@
-# `@hyperlake/superharness-packs`
+# `@cerebrixos/superharness-packs`
+
+English | [中文](README.zh.md)
 
 This package is the portable pack registry for Hyperlake SuperHarness. A pack is both an installable DeepSeek/Cordis bundle plugin and a directory carrying `hyperlake-pack.yaml`. The common manifest supports capability, adapter, domain, asset, governance, and solution categories without creating incompatible formats.
 

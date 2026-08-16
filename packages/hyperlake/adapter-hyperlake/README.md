@@ -1,6 +1,8 @@
-# `@hyperlake/superharness-adapter-hyperlake`
+# `@cerebrixos/superharness-adapter-hyperlake`
 
-This installable bundle starts the unchanged `hyperlake mcp serve --stdio` command and registers its discovered tools through the Harness MCP client. `SUPERHARNESS_HYPERLAKE_COMMAND` overrides the executable, `SUPERHARNESS_HYPERLAKE_MODE` selects `analyst`, `builder`, or `admin`, and `SUPERHARNESS_HYPERLAKE_DISABLED=1` disables the process.
+English | [中文](README.zh.md)
+
+This installable bundle starts the unchanged `hyperlake mcp serve --stdio` command and registers its discovered tools through the Harness MCP client. The published executable resolves its exact `@cerebrixos/hyperlake` dependency; `SUPERHARNESS_HYPERLAKE_COMMAND` can explicitly override that executable, and `SUPERHARNESS_HYPERLAKE_DISABLED=1` disables the process.
 
 Credentials remain in the existing Hyperlake CLI configuration and are scrubbed from the spawned process's inherited environment by the MCP client. The adapter stores no credential values in its pack manifest.
 

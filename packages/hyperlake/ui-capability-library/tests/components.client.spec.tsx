@@ -16,11 +16,11 @@ function props(list: CapabilityLibraryInjected['list']): CapabilityLibraryProps 
 const SNAPSHOT = {
   entries: [
     {
-      entryId: 'data-engineering', moduleName: '@hyperlake/superharness-pack-data-engineering',
+      entryId: 'data-engineering', moduleName: '@cerebrixos/superharness-pack-data-engineering',
       enabled: true, fiberPhase: 'active',
     },
     {
-      entryId: 'hyperlake', moduleName: '@hyperlake/superharness-adapter-hyperlake',
+      entryId: 'hyperlake', moduleName: '@cerebrixos/superharness-adapter-hyperlake',
       enabled: true, fiberPhase: 'active',
     },
   ],

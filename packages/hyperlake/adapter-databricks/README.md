@@ -1,4 +1,6 @@
-# `@hyperlake/superharness-adapter-databricks`
+# `@cerebrixos/superharness-adapter-databricks`
+
+English | [中文](README.zh.md)
 
 This bundle registers Databricks as a compatible SuperHarness adapter and optionally starts a customer-selected MCP server. Set `SUPERHARNESS_DATABRICKS_MCP_COMMAND` to enable execution and provide a JSON argument array through `SUPERHARNESS_DATABRICKS_MCP_ARGS`.
 

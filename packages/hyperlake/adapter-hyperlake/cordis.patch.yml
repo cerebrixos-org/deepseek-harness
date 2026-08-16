@@ -2,7 +2,7 @@
 # CLI MCP server. Authentication remains in the existing CLI configuration.
 - insert:
     - id: superharness-adapter-hyperlake-pack
-      name: '@hyperlake/superharness-adapter-hyperlake'
+      name: '@cerebrixos/superharness-adapter-hyperlake'
 
     - id: superharness-hyperlake-mcp
       name: '@deepseek-ai/dsh-mcp-client'
@@ -11,11 +11,6 @@
         serverName: hyperlake
         transport: stdio
         command: !!js process.env.SUPERHARNESS_HYPERLAKE_COMMAND || 'hyperlake'
-        args:
-          - mcp
-          - serve
-          - --stdio
-          - --mode
-          - !!js process.env.SUPERHARNESS_HYPERLAKE_MODE || 'analyst'
+        args: !!js process.env.SUPERHARNESS_HYPERLAKE_SCRIPT ? [process.env.SUPERHARNESS_HYPERLAKE_SCRIPT, 'mcp', 'serve', '--stdio'] : ['mcp', 'serve', '--stdio']
         failOnStartupError: true
         toolCallTimeoutMs: 120000

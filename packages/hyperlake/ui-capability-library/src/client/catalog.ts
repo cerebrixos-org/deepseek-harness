@@ -24,25 +24,25 @@ export const FIRST_PARTY_CAPABILITIES: readonly FirstPartyCapability[] = [
     name: 'Data Engineering',
     category: 'capability',
     description: 'Governed discovery, modeling, transformation, quality, lineage, observability, and delivery.',
-    moduleName: '@hyperlake/superharness-pack-data-engineering',
+    moduleName: '@cerebrixos/superharness-pack-data-engineering',
     resources: [
       {
         id: 'governed-data-access',
         label: 'Governed data access',
         relationship: 'provisioned',
-        providerModule: '@hyperlake/superharness-adapter-hyperlake',
+        providerModule: '@cerebrixos/superharness-adapter-hyperlake',
       },
       {
         id: 'metadata-lineage',
         label: 'Metadata and lineage',
         relationship: 'enabled',
-        providerModule: '@hyperlake/superharness-adapter-hyperlake',
+        providerModule: '@cerebrixos/superharness-adapter-hyperlake',
       },
       {
         id: 'observability',
         label: 'Logs and metrics',
         relationship: 'enabled',
-        providerModule: '@hyperlake/superharness-adapter-hyperlake',
+        providerModule: '@cerebrixos/superharness-adapter-hyperlake',
       },
       {
         id: 'transformation-project',
@@ -63,13 +63,13 @@ export const FIRST_PARTY_CAPABILITIES: readonly FirstPartyCapability[] = [
     name: 'Life Sciences Research',
     category: 'solution',
     description: 'Governed clinical-research models, procedures, provenance checks, and output evaluations.',
-    moduleName: '@hyperlake/superharness-solution-life-sciences',
+    moduleName: '@cerebrixos/superharness-solution-life-sciences',
     resources: [
       {
         id: 'data-engineering',
         label: 'Data Engineering',
         relationship: 'enabled',
-        providerModule: '@hyperlake/superharness-pack-data-engineering',
+        providerModule: '@cerebrixos/superharness-pack-data-engineering',
       },
       {
         id: 'clinical-data-environment',

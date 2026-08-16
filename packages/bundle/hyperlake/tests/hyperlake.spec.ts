@@ -15,9 +15,9 @@ describe('Hyperlake SuperHarness bundle', () => {
     const patch = readFileSync(resolve(root, patchPath), 'utf8')
 
     const modules = [
-      '@hyperlake/superharness-packs',
-      '@hyperlake/superharness-pack-data-engineering',
-      '@hyperlake/superharness-ui-capability-library',
+      '@cerebrixos/superharness-packs',
+      '@cerebrixos/superharness-pack-data-engineering',
+      '@cerebrixos/superharness-ui-capability-library',
     ]
     const positions = modules.map(moduleName => patch.indexOf(moduleName))
     expect(positions.every(position => position >= 0)).toBe(true)

@@ -1,4 +1,4 @@
-/** Package invariant companion for the Hyperlake MCP adapter. @module @hyperlake/superharness-adapter-hyperlake/invariant */
+/** Package invariant companion for the Hyperlake MCP adapter. @module @cerebrixos/superharness-adapter-hyperlake/invariant */
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 /** Cordis companion plugin name. */
@@ -9,4 +9,4 @@ export const inject = ['invariants']
 const install: InvariantInstaller = () => {}
 /** Register the package-owned invariant companion. */
 export const apply = (ctx: Context): Promise<() => void> =>
-  Promise.resolve(ctx.invariants.register('@hyperlake/superharness-adapter-hyperlake', install))
+  Promise.resolve(ctx.invariants.register('@cerebrixos/superharness-adapter-hyperlake', install))

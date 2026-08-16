@@ -1,18 +1,18 @@
 {
-  "name": "@deepseek-ai/dsh",
-  "description": "dsh CLI: profile boot, plugin management, and the browser UI alias",
-  "version": "0.1.0-rc.5",
+  "name": "@cerebrixos/hyperlake-superharness",
+  "description": "Local governed AI harness for Hyperlake infrastructure and data capabilities",
+  "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "url": "git+https://github.com/cerebrixos-org/deepseek-harness.git",
     "directory": "apps/cli"
   },
   "type": "module",
   "bin": {
-    "dsh": "lib/bin.js"
+    "hyperlake-superharness": "lib/bin.js"
   },
   "files": [
     "lib/*.js",
@@ -40,9 +40,10 @@
     "@deepseek-ai/dsh-launch-environment": "workspace:^",
     "@deepseek-ai/dsh-fs-local": "workspace:^",
     "@deepseek-ai/dsh-headless": "workspace:^",
-    "@hyperlake/superharness-base": "workspace:^",
-    "@hyperlake/superharness-adapter-hyperlake": "workspace:^",
-    "@hyperlake/superharness-packs": "workspace:^",
+    "@cerebrixos/superharness-base": "workspace:^",
+    "@cerebrixos/superharness-adapter-hyperlake": "workspace:^",
+    "@cerebrixos/superharness-packs": "workspace:^",
+    "@cerebrixos/hyperlake": "0.2.0",
     "@deepseek-ai/dsh-mcp-client": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
     "@deepseek-ai/dsh-persona": "workspace:^",

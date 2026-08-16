@@ -1,8 +1,8 @@
-/** Life-sciences solution-pack registration. @module @hyperlake/superharness-solution-life-sciences */
+/** Life-sciences solution-pack registration. @module @cerebrixos/superharness-solution-life-sciences */
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-system-prompt'
-import { registerPackDirectory } from '@hyperlake/superharness-packs'
+import { registerPackDirectory } from '@cerebrixos/superharness-packs'
 
 /** Cordis plugin name. */
 export const name = 'superharness-solution-life-sciences'

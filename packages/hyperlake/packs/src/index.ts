@@ -1,7 +1,7 @@
 /**
  * Portable Hyperlake SuperHarness industry-pack registry and model-facing
  * asset catalog.
- * @module @hyperlake/superharness-packs
+ * @module @cerebrixos/superharness-packs
  */
 
 import { readFileSync, realpathSync, statSync } from 'node:fs'

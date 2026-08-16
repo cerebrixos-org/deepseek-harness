@@ -1,11 +1,11 @@
 {
-  "name": "@hyperlake/superharness-adapter-hyperlake",
+  "name": "@cerebrixos/superharness-adapter-hyperlake",
   "description": "Hyperlake CLI MCP adapter for SuperHarness",
   "version": "0.1.0",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "url": "git+https://github.com/cerebrixos-org/deepseek-harness.git",
     "directory": "packages/hyperlake/adapter-hyperlake"
   },
   "type": "module",
@@ -25,7 +25,7 @@
   "hyperlake": { "pack": "./hyperlake-pack.yaml" },
   "dependencies": {
     "@deepseek-ai/dsh-mcp-client": "workspace:^",
-    "@hyperlake/superharness-packs": "workspace:^"
+    "@cerebrixos/superharness-packs": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",

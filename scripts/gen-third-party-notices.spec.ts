@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 import {
   CLAUDE_AGENT_SDK_PACKAGE,
+  HYPERLAKE_CLI_PACKAGE,
   claudeDistributionFromManifest,
   collectPythonDependencies,
   isOwnerAuthorizedRuntime,
@@ -274,6 +275,7 @@ describe('isPermissive', () => {
 describe('official Claude distribution authorization', () => {
   it('authorizes only the direct SDK identity without relabeling its license', () => {
     expect(isOwnerAuthorizedRuntime(CLAUDE_AGENT_SDK_PACKAGE)).toBe(true)
+    expect(isOwnerAuthorizedRuntime(HYPERLAKE_CLI_PACKAGE)).toBe(true)
     expect(isOwnerAuthorizedRuntime(`${CLAUDE_AGENT_SDK_PACKAGE}-linux-x64`))
       .toBe(false)
     expect(isOwnerAuthorizedRuntime('@anthropic-ai/unrelated')).toBe(false)

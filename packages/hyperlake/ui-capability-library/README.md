@@ -1,4 +1,6 @@
-# `@hyperlake/superharness-ui-capability-library`
+# `@cerebrixos/superharness-ui-capability-library`
+
+English | [中文](README.zh.md)
 
 Read-only first-party Capability Library for the SuperHarness web interface. It presents outcome-level capabilities and their provisioned, enabled, or connectable resources without promoting implementation engines into product concepts. The current Loader inventory supplies live enablement and health; no Rails service or duplicate host API is involved.
 
