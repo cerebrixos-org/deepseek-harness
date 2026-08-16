@@ -7,10 +7,10 @@ metadata:
   name: Databricks
   description: Customer-configured Databricks SQL, Jobs, notebooks, catalog, and workspace operations exposed through MCP.
 provides:
-  - catalog.inspect
-  - sql.query
-  - sql.execute
-  - notebook.run
-  - workflow.run
+  - governed-data-access
+  - metadata-discovery
+  - transformation-execution
+  - notebook-execution
+  - workflow-execution
 resourceSlots: []
 assets: []

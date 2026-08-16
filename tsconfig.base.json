@@ -40,6 +40,7 @@
       "@hyperlake/superharness-pack-data-engineering/invariant": ["./packages/hyperlake/pack-data-engineering/src/invariant.ts"],
       "@hyperlake/superharness-solution-life-sciences": ["./packages/hyperlake/solution-life-sciences/src/index.ts"],
       "@hyperlake/superharness-solution-life-sciences/invariant": ["./packages/hyperlake/solution-life-sciences/src/invariant.ts"],
+      "@hyperlake/superharness-ui-capability-library": ["./packages/hyperlake/ui-capability-library/src"],
       "@deepseek-ai/cordis": ["./vendor/cordis/src"],
       "@deepseek-ai/cosmokit": ["./vendor/cosmokit/src"],
       "@deepseek-ai/schemastery": ["./vendor/schemastery/src"],

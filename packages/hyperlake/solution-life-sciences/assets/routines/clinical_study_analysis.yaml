@@ -5,9 +5,9 @@ metadata:
 spec:
   steps:
     - action: catalog.inspect
-      resourceSlot: clinical-analytical-engine
+      resourceSlot: clinical-data-environment
     - action: sql.query
-      resourceSlot: clinical-analytical-engine
+      resourceSlot: clinical-data-environment
       constraints: [read-only, aggregate-before-disclosure]
     - verify: regulated-output
   outputs:

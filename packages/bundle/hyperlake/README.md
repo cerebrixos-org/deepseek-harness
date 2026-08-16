@@ -1,23 +1,23 @@
 # `@hyperlake/superharness-base`
 
-This bundle adds the portable Hyperlake pack registry to a DeepSeek Harness profile. It stores no credentials and adds no target adapter by itself. Install adapter and solution-pack bundles as later profile layers.
+This bundle adds the portable Hyperlake pack registry, the Data Engineering capability, and the read-only Capability Library to a DeepSeek Harness profile. It stores no credentials. The profile layer adds the Hyperlake adapter that supplies governed access to customer resources.
 
 ## Model Experience
 
-### Registry composition
+### Capability composition
 
 #### What the model sees
 
-The fixed discovery, validation, and asset tools contributed by `@hyperlake/superharness-packs`; this bundle contributes no prompt text of its own.
+The fixed discovery, validation, and asset tools contributed by `@hyperlake/superharness-packs`, plus the concise Data Engineering operating guidance. The Capability Library itself contributes no model input.
 
 #### Token effect
 
-Only later tool calls and results add data-dependent tokens.
+The Data Engineering prompt adds a small fixed prefix. Later tool calls and results add data-dependent tokens.
 
 #### KV Cache effect
 
-The bundle adds only the registry's fixed tool schemas.
+The bundle adds the registry's fixed tool schemas and stable Data Engineering guidance.
 
 ## Known Limitations and Deferred Work
 
-- Target connectivity requires a separately installed adapter bundle.
+- The Capability Library reports current provider availability; resource binding and installation actions are intentionally deferred.

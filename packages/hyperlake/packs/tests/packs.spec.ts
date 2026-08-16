@@ -110,10 +110,10 @@ describe('SuperHarness pack registry', () => {
     }
 
     expect(ctx.hyperlakePacks.validate('data-engineering', [{
-      slotId: 'analytical-engine', resourceType: 'hyperlake-cluster', resourceId: 'cluster-123',
+      slotId: 'data-environment', resourceType: 'hyperlake-query-resource', resourceId: 'cluster-123',
     }])).toMatchObject({ valid: true, installedAdapters: ['hyperlake'] })
     expect(ctx.hyperlakePacks.validate('life-sciences-research', [{
-      slotId: 'clinical-analytical-engine', resourceType: 'hyperlake-cluster', resourceId: 'cluster-123',
+      slotId: 'clinical-data-environment', resourceType: 'hyperlake-query-resource', resourceId: 'cluster-123',
     }])).toMatchObject({ valid: true, issues: [] })
     expect(ctx.hyperlakePacks.get('life-sciences-research').manifest.assets?.[0]).toMatchObject({
       dialect: 'spark-sql', adapters: ['databricks'], portable: false,

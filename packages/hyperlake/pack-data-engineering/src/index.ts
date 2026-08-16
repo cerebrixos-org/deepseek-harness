@@ -16,6 +16,6 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.systemPrompt.section({
     name: 'superharness:pack:data-engineering',
     order: 170,
-    text: 'For data-engineering work, inspect installed SuperHarness packs before inventing schemas or procedures. Read the relevant routine, DDL, goal, and evaluation assets; execute them only through a compatible installed adapter and bound customer resource.',
+    text: 'For data-engineering work, use the Data Engineering capability as the operating context. Discover governed data and metadata first; use available lineage and observability when they help; treat dbt, repositories, and orchestrators as optional bound resources. Read relevant routines, DDL, goals, and evaluations before execution, and use only authorized resource bindings.',
   }), 'superharness-pack-data-engineering.prompt')
 }

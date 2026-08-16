@@ -9,7 +9,7 @@ spec:
       value: 30
   observe:
     capability: sql.query
-    resourceSlot: analytical-engine
+    resourceSlot: data-environment
   allowedRoutines:
     - investigate-pipeline-failure
   interval: 15m

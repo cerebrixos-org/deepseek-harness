@@ -10,8 +10,8 @@ requires:
   packs:
     - data-engineering
   capabilities:
-    - catalog.inspect
-    - sql.query
+    - governed-data-access
+    - metadata-discovery
   oneOfAdapters:
     - hyperlake
     - databricks
@@ -20,10 +20,10 @@ provides:
   - clinical-study-analysis
   - regulated-output-evaluation
 resourceSlots:
-  - id: clinical-analytical-engine
-    types: [hyperlake-cluster, databricks-workspace]
+  - id: clinical-data-environment
+    types: [hyperlake-query-resource, governed-data-environment]
     required: true
-    description: Customer-controlled engine containing authorized clinical research data.
+    description: Governed customer environment containing authorized clinical research data.
   - id: clinical-model-repository
     types: [git-repository, local-directory]
     required: false

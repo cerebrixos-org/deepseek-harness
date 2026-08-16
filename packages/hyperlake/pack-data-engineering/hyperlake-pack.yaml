@@ -5,28 +5,33 @@ metadata:
   version: 0.1.0
   category: capability
   name: Data Engineering
-  description: Reusable bronze, silver, pipeline, schema-drift, quality, and deployment procedures for customer-controlled data platforms.
+  description: Governed data discovery, modeling, transformation, quality, lineage, observability, and delivery procedures across provisioned and connected resources.
 requires:
   capabilities:
-    - catalog.inspect
-    - sql.query
-  oneOfAdapters:
-    - hyperlake
-    - databricks
+    - governed-data-access
+    - metadata-discovery
 provides:
-  - data-model.inspect
-  - data-model.render
-  - pipeline.investigate
-  - data-quality.verify
+  - data-modeling
+  - transformation-planning
+  - pipeline-investigation
+  - data-quality-verification
 resourceSlots:
-  - id: analytical-engine
-    types: [hyperlake-cluster, databricks-workspace]
+  - id: data-environment
+    types: [hyperlake-query-resource, governed-data-environment]
     required: true
-    description: Customer engine used to inspect catalogs and execute compatible SQL assets.
-  - id: model-repository
+    description: Governed customer data environment used for discovery, query execution, and policy enforcement.
+  - id: transformation-project
+    types: [dbt-project, sql-repository, git-repository, local-directory]
+    required: false
+    description: Optional customer transformation project; dbt is supported as one provider rather than required by the capability.
+  - id: definition-repository
     types: [git-repository, local-directory]
     required: false
-    description: Customer-controlled repository containing deployed data definitions.
+    description: Customer-controlled repository containing data definitions, contracts, and deployment artifacts.
+  - id: orchestrator
+    types: [temporal, prefect, workflow-service]
+    required: false
+    description: Optional workflow system for deterministic execution, retries, approvals, and verification.
 assets:
   - id: silver-orders-ddl
     type: ddl

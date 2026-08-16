@@ -22,7 +22,9 @@
   "license": "MIT",
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
   "dependencies": {
-    "@hyperlake/superharness-packs": "workspace:^"
+    "@hyperlake/superharness-packs": "workspace:^",
+    "@hyperlake/superharness-pack-data-engineering": "workspace:^",
+    "@hyperlake/superharness-ui-capability-library": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",

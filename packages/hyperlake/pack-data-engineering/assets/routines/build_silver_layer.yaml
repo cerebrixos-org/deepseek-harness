@@ -6,14 +6,14 @@ spec:
   inputs: [source, target, business_key]
   steps:
     - action: catalog.inspect
-      resourceSlot: analytical-engine
+      resourceSlot: data-environment
     - action: pack.asset.read
       asset: silver-orders-ddl
     - action: repository.propose-change
       resourceSlot: model-repository
       approval: required
     - action: sql.execute
-      resourceSlot: analytical-engine
+      resourceSlot: data-environment
       approval: required
     - verify: data-quality.verify
   limits:
