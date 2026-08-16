@@ -1,7 +1,7 @@
 {
   "name": "@cerebrixos/superharness-solution-life-sciences",
   "description": "Life-sciences industry accelerator example for Hyperlake SuperHarness",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
