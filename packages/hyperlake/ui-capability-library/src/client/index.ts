@@ -3,7 +3,8 @@
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { CapabilityLibrary, type CapabilityLibraryInjected } from './CapabilityLibrary.tsx'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { CapabilityHome, CapabilityLibrary, type CapabilityLibraryInjected } from './CapabilityLibrary.tsx'
 import { en, zh, type CapabilityLibraryLocaleKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -35,4 +36,11 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: (): CapabilityLibraryInjected => ({ list }),
   }, CapabilityLibrary))
+  ctx.slots.inject('conversation.hero.capabilities', () => ctx.slots.register({
+    name: 'conversation.hero.capabilities',
+    id: 'hyperlake-capability-packs',
+    order: 10,
+    locale: NS,
+    inject: (): CapabilityLibraryInjected => ({ list }),
+  }, CapabilityHome))
 }

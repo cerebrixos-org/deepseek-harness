@@ -4,6 +4,28 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.section[data-surface='home'] {
+  width: min(820px, calc(100vw - 48px));
+  margin: 4px auto 2px;
+}
+
+.section[data-surface='home'] .cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.section[data-surface='home'] .summary {
+  min-height: 74px;
+  padding: 11px 13px;
+}
+
+.section[data-surface='home'] .description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .message,
 .failure p,
 .heading h3,
@@ -220,6 +242,28 @@
   min-width: 0;
   font-size: 12px;
   line-height: 18px;
+}
+
+@media (max-width: 720px) {
+  .section[data-surface='home'] {
+    width: min(100%, calc(100vw - 28px));
+  }
+
+  .section[data-surface='home'] .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary {
+    align-items: flex-start;
+  }
+
+  .resources li {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+  }
+
+  .relationship {
+    display: none;
+  }
 }
 
 .relationship {

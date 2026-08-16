@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CapabilityLibrary, type CapabilityLibraryInjected, type CapabilityLibraryProps } from '../src/client/CapabilityLibrary.tsx'
+import {
+  CapabilityHome, CapabilityLibrary, type CapabilityLibraryInjected, type CapabilityLibraryProps,
+} from '../src/client/CapabilityLibrary.tsx'
 import { en, type CapabilityLibraryLocaleKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -47,6 +49,14 @@ describe('CapabilityLibrary', () => {
     expect(solution.textContent).toContain('Not enabled')
     fireEvent.click(solution)
     expect(screen.getByText('Clinical data environment')).toBeTruthy()
+  })
+
+  it('shows both packs compactly on the new-session home', async () => {
+    render(<CapabilityHome {...props(async () => SNAPSHOT)} />)
+    expect(await screen.findByText('Capability packs')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Data Engineering/ }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /Life Sciences Research/ }).getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelector('[data-surface="home"]')).toBeTruthy()
   })
 
   it('contains inventory failures and retries', async () => {

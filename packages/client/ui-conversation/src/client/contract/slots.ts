@@ -143,6 +143,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * the next one rather than applied to a current one.
      */
     'conversation.hero.agentPreset': { kind: 'single'; scope: 'root'; owner: HeroAgentPresetOwnerProps }
+    /**
+     * Product capabilities presented on the new-session home. This list seat
+     * lets distributions expose useful packs without replacing the composer.
+     */
+    'conversation.hero.capabilities': { kind: 'list'; scope: 'root'; owner: Record<string, never> }
     // 'conversation.input.overlay' merges in ui-input-trigger (the dependency
     // direction is the hard constraint — ui-input-trigger cannot import
     // this package, while this package's input contract already imports
@@ -575,6 +580,7 @@ export type ConversationSlotProps =
     | 'conversation.input.left' | 'conversation.input.right'
     | 'conversation.hero.workspace'
     | 'conversation.hero.agentPreset'
+    | 'conversation.hero.capabilities'
   >
   & InjectFace<ConversationInjected>
   & PropsLocale<'conversation'>

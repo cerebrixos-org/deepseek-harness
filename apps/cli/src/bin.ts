@@ -41,8 +41,12 @@ function configureBundledHyperlake(): void {
 /** Boot the Hyperlake profile unless the caller selected another launcher mode. */
 function defaultProfileArgs(args: string[]): string[] {
   const first = args[0]
-  if (args.includes('--profile') || first === 'web' || first === 'plugin') return args
+  if (args.includes('--profile') || first === 'plugin') return args
   if (first === '-h' || first === '--help' || first === '-V' || first === '--version') return args
+  // This distribution's `web` shorthand is the Hyperlake product surface,
+  // not the unbranded upstream web profile. Explicit --profile web remains
+  // available for framework diagnostics.
+  if (first === 'web') return ['--profile', 'hyperlake', ...args.slice(1)]
   return ['--profile', 'hyperlake', ...args]
 }
 

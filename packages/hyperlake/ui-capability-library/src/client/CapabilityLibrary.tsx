@@ -21,6 +21,10 @@ export type CapabilityLibraryProps =
   & PropsLocale<'settings.capabilityLibrary'>
   & InjectFace<CapabilityLibraryInjected>
 
+interface CapabilityLibraryViewProps extends CapabilityLibraryProps {
+  surface?: 'settings' | 'home'
+}
+
 type ViewState =
   | { status: 'loading' }
   | { status: 'error' }
@@ -48,10 +52,10 @@ function relationshipKey(resource: CapabilityResource): CapabilityLibraryLocaleK
 }
 
 /** Render first-party capabilities and their provisioned or connectable resources. */
-export function CapabilityLibrary({ list, t }: CapabilityLibraryProps): ReactNode {
+export function CapabilityLibrary({ list, t, surface = 'settings' }: CapabilityLibraryViewProps): ReactNode {
   const detailsPrefix = useId()
   const [request, setRequest] = useState(0)
-  const [expanded, setExpanded] = useState<string | null>('data-engineering')
+  const [expanded, setExpanded] = useState<string | null>(surface === 'settings' ? 'data-engineering' : null)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
 
   useEffect(() => {
@@ -69,7 +73,7 @@ export function CapabilityLibrary({ list, t }: CapabilityLibraryProps): ReactNod
   }
 
   return (
-    <div className={css.section} aria-busy={state.status === 'loading'}>
+    <div className={css.section} data-surface={surface} aria-busy={state.status === 'loading'}>
       {state.status === 'loading' ? <p className={css.message}>{t('loading')}</p> : null}
       {state.status === 'error' ? (
         <div className={css.failure}>
@@ -80,7 +84,7 @@ export function CapabilityLibrary({ list, t }: CapabilityLibraryProps): ReactNod
       {state.status === 'ready' ? (
         <div className={css.library}>
           <div className={css.heading}>
-            <h3>{t('library')}</h3>
+            <h3>{surface === 'home' ? t('homeLibrary') : t('library')}</h3>
             <span>{FIRST_PARTY_CAPABILITIES.length}</span>
           </div>
           <ul className={css.cards}>
@@ -143,4 +147,9 @@ export function CapabilityLibrary({ list, t }: CapabilityLibraryProps): ReactNod
       ) : null}
     </div>
   )
+}
+
+/** Compact capability-pack projection for the new-session home. */
+export function CapabilityHome(props: CapabilityLibraryProps): ReactNode {
+  return <CapabilityLibrary {...props} surface="home" />
 }
