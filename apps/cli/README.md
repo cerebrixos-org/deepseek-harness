@@ -62,9 +62,9 @@ npx @cerebrixos/hyperlake-superharness
 ```
 
 6. In the local Web UI, configure a supported model provider. Model-provider credentials and Hyperlake credentials are separate.
-7. Open **Settings → Capabilities**, enable the capability, and bind every required resource slot using opaque resource ids.
-8. Select the capability before the session's first message.
-9. Ask for direct governed work, for example: `Inspect the available governed datasets and query sales totals for the last 30 days.`
+7. Open **Settings → Plugins** to install optional npm, Git, private-SSH, or absolute local-path plugins. Confirm the source and restart after installation.
+8. Open **Settings → Capabilities**, create or enable a capability, edit its outcomes, discover its governed resources, and attach contributions exported by installed plugins.
+9. Select the capability before the session's first message and ask for direct governed work, for example: `Inspect the available governed datasets and query sales totals for the last 30 days.`
 10. For bounded autonomous work, ask: `Activate the maintain-data-freshness goal and stop only after its success criteria are verified.` or `Run the build-silver-layer routine for source raw.orders and target silver.orders.`
 
 The laptop calls the Hyperlake control plane and authorized cluster endpoints through the bundled CLI/MCP process. Pack selection does not copy customer data or credentials into the SuperHarness registry, and target operations still enforce Hyperlake identity, policy, and approval checks.
@@ -82,6 +82,18 @@ Use an explicit profile to access the underlying Harness profiles:
 ```sh
 npx @cerebrixos/hyperlake-superharness --profile headless "inspect platform health"
 ```
+
+## Plugins and Capabilities
+
+Core Harness tools are available to every capability. Plugins are the supply layer for optional tools, resource providers, assets, evaluations, and outcomes. Install a plugin in **Settings → Plugins**, or use the equivalent CLI command:
+
+```sh
+npx @cerebrixos/hyperlake-superharness plugin --profile hyperlake add <npm-package-or-git-source>
+```
+
+For a private package, authenticate through the user's npm configuration. For a private Git repository, use an SSH URL and the user's SSH agent. Never embed a token in a URL. A restart is required after install or removal so the profile can load the changed bundle.
+
+The Plugins page inventories only installed contributions. A capability may then compose those contributions: outcomes are editable; governed resources are discovered through an installed provider and stored by opaque id; assets and evaluations retain immutable source-plugin provenance; optional tools can be shared across capabilities or scoped to one capability. Base Harness tools are not duplicated in capability configuration.
 
 ## Capability Packs
 

@@ -152,6 +152,8 @@
 .formGrid textarea { min-height: 66px; resize: vertical; }
 .formGrid select[multiple] { min-height: 88px; }
 .wide { grid-column: 1 / -1; }
+.formGrid .confirmRow { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.formGrid .confirmRow input { width: 16px; height: 16px; margin: 0; padding: 0; }
 
 .providerPanel, .attachmentEditor { display: grid; gap: 12px; }
 .attachmentEditor { border-top: 1px solid var(--dsw-alias-border-l2); padding-top: 12px; }

@@ -99,7 +99,10 @@ async function harness(agentFor: (id: string) => unknown = () => undefined) {
   ctx.provide('agents', { get: agentFor } as never)
   const stateRoot = mkdtempSync(join(tmpdir(), 'superharness-state-'))
   roots.push(stateRoot)
-  await ctx.plugin(SuperHarnessPackRegistry, { statePath: join(stateRoot, 'packs.json') })
+  await ctx.plugin(SuperHarnessPackRegistry, {
+    statePath: join(stateRoot, 'packs.json'),
+    allowPluginManagement: true,
+  })
   return ctx
 }
 
@@ -316,9 +319,9 @@ describe('SuperHarness pack registry', () => {
       outcomes: [{ id: 'study-answer', name: 'Study answer', description: 'A governed answer.' }],
     }).ok).toBe(true)
     for (const attachment of [
-      { id: 'shared-context', name: 'Shared context', description: 'Common discovery.', providerId: 'custom', scope: 'shared' as const, execution: 'local' as const, outcomeIds: [], toolNames: ['shared_tool'] },
-      { id: 'model-provider', name: 'Model provider', description: 'Model operations.', providerId: 'custom', scope: 'capability' as const, capabilityId: 'model-data', execution: 'local' as const, outcomeIds: ['modeled-data'], toolNames: ['model_tool'] },
-      { id: 'clinical-provider', name: 'Clinical provider', description: 'Clinical operations.', providerId: 'custom', scope: 'capability' as const, capabilityId: 'clinical-analysis', execution: 'platform' as const, outcomeIds: ['study-answer'], toolNames: ['clinical_tool'] },
+      { id: 'shared-context', name: 'Shared context', description: 'Common discovery.', providerId: 'model-data', scope: 'shared' as const, execution: 'local' as const, outcomeIds: [], toolNames: ['shared_tool'] },
+      { id: 'model-provider', name: 'Model provider', description: 'Model operations.', providerId: 'model-data', scope: 'capability' as const, capabilityId: 'model-data', execution: 'local' as const, outcomeIds: ['modeled-data'], toolNames: ['model_tool'] },
+      { id: 'clinical-provider', name: 'Clinical provider', description: 'Clinical operations.', providerId: 'clinical-analysis', scope: 'capability' as const, capabilityId: 'clinical-analysis', execution: 'platform' as const, outcomeIds: ['study-answer'], toolNames: ['clinical_tool'] },
     ]) expect(ctx.hyperlakePacks.upsertAttachment({ attachment }).ok).toBe(true)
 
     expect(ctx.hyperlakePacks.select({ sessionId: 'session-composed', packId: 'model-data' }).ok).toBe(true)
@@ -345,5 +348,44 @@ describe('SuperHarness pack registry', () => {
         managedToolNames: ['clinical_tool', 'model_tool', 'shared_tool'],
       },
     })
+  })
+
+  it('composes editable outcomes, discovered resources, and immutable plugin assets', async () => {
+    const ctx = await harness()
+    for (const directory of ['adapter-hyperlake', 'pack-data-engineering']) {
+      const root = fileURLToPath(new URL(`../../${directory}/`, import.meta.url))
+      ctx.hyperlakePacks.register(loadPackDirectory(root), { defaultEnabled: true })
+    }
+    expect(ctx.hyperlakePacks.createCapability({
+      id: 'customer-analytics', name: 'Customer analytics', description: 'Analyze governed customer data.',
+      outcomes: [{ id: 'answer', name: 'Answer', description: 'Produce an answer.' }],
+    }).ok).toBe(true)
+    expect(ctx.hyperlakePacks.setOutcomes({
+      packId: 'customer-analytics', outcomes: [{ id: 'verified-answer', name: 'Verified answer', description: 'Produce a governed, tested answer.' }],
+    }).ok).toBe(true)
+    ctx.hyperlakePacks.registerResourceProvider({
+      id: 'fixture-resources', pluginId: 'hyperlake', name: 'Fixture resources', description: 'Test provider.',
+      resourceTypes: ['hyperlake-query-resource'],
+      list: () => Promise.resolve([{ id: 'cluster-1', type: 'hyperlake-query-resource', name: 'Production', description: 'Production cluster.', providerId: 'fixture-resources' }]),
+    })
+    expect(await ctx.hyperlakePacks.discoverResources({ providerId: 'fixture-resources' })).toEqual([expect.objectContaining({ id: 'cluster-1' })])
+    expect(ctx.hyperlakePacks.upsertResource({ packId: 'customer-analytics', resource: {
+      id: 'production', name: 'Production', description: 'Production cluster.', providerId: 'fixture-resources',
+      resourceType: 'hyperlake-query-resource', resourceId: 'cluster-1',
+    } }).ok).toBe(true)
+    expect(ctx.hyperlakePacks.attachAsset({
+      packId: 'customer-analytics', sourcePackId: 'data-engineering', sourceAssetId: 'sql-safety-evaluation',
+    }).ok).toBe(true)
+    expect(ctx.hyperlakePacks.catalog().entries.find(entry => entry.id === 'customer-analytics')).toMatchObject({
+      outcomes: [{ id: 'verified-answer' }],
+      resources: [{ resourceId: 'cluster-1', providerId: 'fixture-resources' }],
+      assets: [{ id: 'data-engineering.sql-safety-evaluation', type: 'evaluation', sourcePackId: 'data-engineering', attached: true }],
+    })
+  })
+
+  it('rejects credential-bearing plugin URLs before invoking the package manager', async () => {
+    const ctx = await harness()
+    await expect(ctx.hyperlakePacks.installPlugin({ source: 'https://token@example.com/private/plugin.git', confirmed: true }))
+      .resolves.toMatchObject({ ok: false, restartRequired: false })
   })
 })

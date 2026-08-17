@@ -20,6 +20,7 @@ export interface CapabilityOutcome {
 export interface CapabilityToolView {
   name: string
   description: string
+  core: boolean
 }
 
 /** Provider and tool set attached globally or to one capability. */
@@ -35,6 +36,51 @@ export interface CapabilityProviderAttachment {
   toolNames: string[]
 }
 
+/** Immutable asset selected from an installed source plugin. */
+export interface CapabilityAssetAttachment {
+  id: string
+  sourcePackId: string
+  sourceAssetId: string
+}
+
+/** One resource instance discovered by an installed resource-provider plugin. */
+export interface CapabilityResourceAttachment {
+  id: string
+  name: string
+  description: string
+  providerId: string
+  resourceType: string
+  resourceId: string
+}
+
+/** Client-safe resource-provider contribution. */
+export interface PluginResourceProviderView {
+  id: string
+  pluginId: string
+  name: string
+  description: string
+  resourceTypes: string[]
+}
+
+/** Client-safe resource returned by a provider discovery operation. */
+export interface PluginResourceView {
+  id: string
+  type: string
+  name: string
+  description: string
+  providerId: string
+}
+
+/** One profile dependency managed through the same pnpm lifecycle as the CLI. */
+export interface InstalledPluginView {
+  packageName: string
+  version: string
+  source: string
+  description: string
+  bundle: boolean
+  restartRequired: boolean
+}
+
 /** Client-safe metadata for one explicitly exported pack asset. */
 export interface PackAssetView {
   id: string
@@ -44,6 +90,9 @@ export interface PackAssetView {
   portable?: boolean
   access: 'read' | 'mutate'
   approval: 'none' | 'required'
+  sourcePackId: string
+  sourceAssetId: string
+  attached: boolean
 }
 
 /** Typed resource requirement declared by a pack. */
@@ -75,6 +124,7 @@ export interface PackCatalogEntry {
   acceptedAdapters: string[]
   resourceSlots: PackResourceSlotView[]
   bindings: PackResourceBinding[]
+  resources: CapabilityResourceAttachment[]
   assets: PackAssetView[]
   issues: string[]
 }
@@ -83,7 +133,10 @@ export interface PackCatalogEntry {
 export interface PackCatalogSnapshot {
   entries: PackCatalogEntry[]
   availableTools: CapabilityToolView[]
+  coreTools: CapabilityToolView[]
   attachments: CapabilityProviderAttachment[]
+  resourceProviders: PluginResourceProviderView[]
+  installedPlugins: InstalledPluginView[]
 }
 /** Request to change one installed pack's lifecycle state. */
 export interface PackSetEnabledRequest { packId: string; enabled: boolean }
@@ -98,12 +151,25 @@ export interface CapabilityCreateRequest {
   description: string
   outcomes: CapabilityOutcome[]
 }
+/** Replace a capability's complete outcome set. */
+export interface CapabilityOutcomesSetRequest { packId: string; outcomes: CapabilityOutcome[] }
 /** Request to delete one user-owned capability. */
 export interface CapabilityDeleteRequest { packId: string }
 /** Request to create or replace one provider attachment. */
 export interface CapabilityAttachmentUpsertRequest { attachment: CapabilityProviderAttachment }
 /** Request to remove one provider attachment. */
 export interface CapabilityAttachmentRemoveRequest { attachmentId: string }
+/** Attach or remove an immutable asset exported by an installed plugin. */
+export interface CapabilityAssetAttachRequest { packId: string; sourcePackId: string; sourceAssetId: string }
+export interface CapabilityAssetRemoveRequest { packId: string; attachmentId: string }
+/** Attach or remove a discovered non-secret resource reference. */
+export interface CapabilityResourceUpsertRequest { packId: string; resource: CapabilityResourceAttachment }
+export interface CapabilityResourceRemoveRequest { packId: string; resourceId: string }
+/** Discover resources through one installed provider plugin. */
+export interface PluginResourceDiscoverRequest { providerId: string }
+/** Install or remove a profile plugin using existing npm/SSH credentials. */
+export interface PluginInstallRequest { source: string; confirmed: boolean }
+export interface PluginRemoveRequest { packageName: string; confirmed: boolean }
 
 /** Shared mutation result returned by pack lifecycle operations. */
 export interface PackOperationResult {
@@ -111,6 +177,13 @@ export interface PackOperationResult {
   packId: string
   message?: string
   entry?: PackCatalogEntry
+}
+
+export interface PluginOperationResult {
+  ok: boolean
+  message: string
+  restartRequired: boolean
+  packageName?: string
 }
 
 /** Pack-selection result with target session provenance. */

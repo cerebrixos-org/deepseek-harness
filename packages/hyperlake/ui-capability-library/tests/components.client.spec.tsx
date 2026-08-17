@@ -3,31 +3,34 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PackCatalogSnapshot } from '@cerebrixos/superharness-packs/types'
 import {
-  CapabilityHome, CapabilityLibrary, type CapabilityHomeProps, type CapabilityLibraryInjected, type CapabilityLibraryProps,
+  CapabilityHome, CapabilityLibrary, PluginCatalog, type CapabilityHomeProps, type CapabilityLibraryInjected, type CapabilityLibraryProps,
 } from '../src/client/CapabilityLibrary.tsx'
 import { en, type CapabilityLibraryLocaleKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 const t = (key: CapabilityLibraryLocaleKey): string => en[key]
 
-const SNAPSHOT: PackCatalogSnapshot = { availableTools: [{ name: 'query_data', description: 'Query governed data.' }], attachments: [], entries: [
-  {
-    id: 'data-engineering', version: '1.0.0', category: 'capability', name: 'Data Engineering',
-    description: 'Governed data engineering.', installed: true, userCreated: false, enabled: true, ready: true,
-    contributesTo: [], provides: ['data-modeling'], requiresPacks: [], requiresCapabilities: [], acceptedAdapters: [],
-    outcomes: [{ id: 'data-modeling', name: 'Model governed data', description: 'Create an authorized model.' }], effectiveAttachments: [], effectiveTools: [],
-    resourceSlots: [{ id: 'data-environment', types: ['governed-data-environment'], required: true, description: 'Authorized data environment.' }],
-    bindings: [{ slotId: 'data-environment', resourceType: 'governed-data-environment', resourceId: 'resource-1' }],
-    assets: [{ id: 'build-silver', type: 'routine', description: 'Build a silver model.', access: 'mutate', approval: 'required' }], issues: [],
-  },
-  {
-    id: 'life-sciences-research', version: '1.0.0', category: 'solution', name: 'Life Sciences Research',
-    description: 'Clinical research accelerator.', installed: true, userCreated: false, enabled: false, ready: false,
-    contributesTo: ['data-engineering'], provides: ['clinical-analysis'], requiresPacks: ['data-engineering'], requiresCapabilities: [], acceptedAdapters: [],
-    outcomes: [{ id: 'clinical-analysis', name: 'Analyze studies', description: 'Analyze permitted study data.' }], effectiveAttachments: [], effectiveTools: [],
-    resourceSlots: [], bindings: [], assets: [], issues: [],
-  },
-] }
+const SNAPSHOT: PackCatalogSnapshot = {
+  availableTools: [{ name: 'query_data', description: 'Query governed data.', core: false }],
+  coreTools: [{ name: 'bash', description: 'Core shell.', core: true }], attachments: [], resourceProviders: [], installedPlugins: [], entries: [
+    {
+      id: 'data-engineering', version: '1.0.0', category: 'capability', name: 'Data Engineering',
+      description: 'Governed data engineering.', installed: true, userCreated: false, enabled: true, ready: true,
+      contributesTo: [], provides: ['data-modeling'], requiresPacks: [], requiresCapabilities: [], acceptedAdapters: [],
+      outcomes: [{ id: 'data-modeling', name: 'Model governed data', description: 'Create an authorized model.' }], effectiveAttachments: [], effectiveTools: [],
+      resourceSlots: [{ id: 'data-environment', types: ['governed-data-environment'], required: true, description: 'Authorized data environment.' }],
+      bindings: [{ slotId: 'data-environment', resourceType: 'governed-data-environment', resourceId: 'resource-1' }],
+      resources: [{ id: 'resource-1', name: 'Production', description: 'Production data.', providerId: 'hyperlake-clusters', resourceType: 'governed-data-environment', resourceId: 'resource-1' }],
+      assets: [{ id: 'build-silver', type: 'routine', description: 'Build a silver model.', access: 'mutate', approval: 'required', sourcePackId: 'data-engineering', sourceAssetId: 'build-silver', attached: false }], issues: [],
+    },
+    {
+      id: 'life-sciences-research', version: '1.0.0', category: 'solution', name: 'Life Sciences Research',
+      description: 'Clinical research accelerator.', installed: true, userCreated: false, enabled: false, ready: false,
+      contributesTo: ['data-engineering'], provides: ['clinical-analysis'], requiresPacks: ['data-engineering'], requiresCapabilities: [], acceptedAdapters: [],
+      outcomes: [{ id: 'clinical-analysis', name: 'Analyze studies', description: 'Analyze permitted study data.' }], effectiveAttachments: [], effectiveTools: [],
+      resourceSlots: [], bindings: [], resources: [], assets: [], issues: [],
+    },
+  ] }
 
 function props(overrides: Partial<CapabilityLibraryInjected> = {}): CapabilityLibraryProps {
   const injected: CapabilityLibraryInjected = {
@@ -39,6 +42,14 @@ function props(overrides: Partial<CapabilityLibraryInjected> = {}): CapabilityLi
     deleteCapability: vi.fn().mockResolvedValue({ ok: true, packId: 'custom' }),
     upsertAttachment: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
     removeAttachment: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
+    setOutcomes: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
+    attachAsset: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
+    removeAsset: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
+    upsertResource: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
+    removeResource: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
+    discoverResources: vi.fn().mockResolvedValue([]),
+    installPlugin: vi.fn().mockResolvedValue({ ok: true, message: 'installed', restartRequired: true }),
+    removePlugin: vi.fn().mockResolvedValue({ ok: true, message: 'removed', restartRequired: true }),
     ...overrides,
   }
   return {
@@ -50,7 +61,7 @@ function props(overrides: Partial<CapabilityLibraryInjected> = {}): CapabilityLi
 describe('CapabilityLibrary', () => {
   it('shows readiness, lifecycle actions, details, and approval metadata', async () => {
     render(<CapabilityLibrary {...props()} />)
-    expect(await screen.findByText('Data Engineering')).toBeTruthy()
+    expect(await screen.findByRole('button', { name: /Data Engineering/ })).toBeTruthy()
     expect(screen.getByText('Ready')).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: 'Assets' }))
     expect(screen.getByText('build-silver')).toBeTruthy()
@@ -68,7 +79,7 @@ describe('CapabilityLibrary', () => {
   it('selects a ready pack for the current blank conversation', async () => {
     const select = vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering', sessionId: 'session-1' })
     render(<CapabilityLibrary {...props({ select })} />)
-    await screen.findByText('Data Engineering')
+    await screen.findByRole('button', { name: /Data Engineering/ })
     fireEvent.click(screen.getAllByRole('button', { name: 'Use' })[0]!)
     expect(select).toHaveBeenCalledWith({ sessionId: 'session-1', packId: 'data-engineering' })
   })
@@ -85,13 +96,13 @@ describe('CapabilityLibrary', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(en.error)
     expect(screen.queryByText('private detail')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.retry }))
-    expect(await screen.findByText('Data Engineering')).toBeTruthy()
+    expect(await screen.findByRole('button', { name: /Data Engineering/ })).toBeTruthy()
   })
 
   it('creates a capability with explicit outcomes', async () => {
     const createCapability = vi.fn().mockResolvedValue({ ok: true, packId: 'risk-review' })
     render(<CapabilityLibrary {...props({ createCapability })} />)
-    await screen.findByText('Data Engineering')
+    await screen.findByRole('button', { name: /Data Engineering/ })
     fireEvent.click(screen.getByRole('button', { name: 'New capability' }))
     const creator = screen.getByRole('heading', { name: 'New capability' }).closest('section')!
     fireEvent.change(within(creator).getByLabelText('Name'), { target: { value: 'Risk Review' } })
@@ -107,7 +118,7 @@ describe('CapabilityLibrary', () => {
     const upsertAttachment = vi.fn<CapabilityLibraryInjected['upsertAttachment']>()
       .mockResolvedValue({ ok: true, packId: 'data-engineering' })
     render(<CapabilityLibrary {...props({ upsertAttachment })} />)
-    await screen.findByText('Data Engineering')
+    await screen.findByRole('button', { name: /Data Engineering/ })
     fireEvent.click(screen.getByRole('tab', { name: 'Providers & tools' }))
     const editor = screen.getByRole('heading', { name: 'Add capability provider' }).parentElement!
     fireEvent.change(within(editor).getByLabelText('Name'), { target: { value: 'Governed query' } })
@@ -121,5 +132,17 @@ describe('CapabilityLibrary', () => {
     expect(request?.attachment).toMatchObject({
       scope: 'capability', capabilityId: 'data-engineering', name: 'Governed query', toolNames: ['query_data'],
     })
+  })
+
+  it('installs a confirmed npm or Git plugin through the profile lifecycle', async () => {
+    const installPlugin = vi.fn<CapabilityLibraryInjected['installPlugin']>()
+      .mockResolvedValue({ ok: true, message: 'restart required', restartRequired: true, packageName: '@example/plugin' })
+    render(<PluginCatalog {...props({ installPlugin })} t={t} />)
+    await screen.findByRole('heading', { name: 'Install plugin' })
+    fireEvent.change(screen.getByLabelText(/npm, GitHub/), { target: { value: 'github:example/plugin#abc123' } })
+    fireEvent.click(screen.getByLabelText(/modify my local Hyperlake profile/))
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }))
+    expect(installPlugin).toHaveBeenCalledWith({ source: 'github:example/plugin#abc123', confirmed: true })
+    expect(await screen.findByText('restart required')).toBeTruthy()
   })
 })

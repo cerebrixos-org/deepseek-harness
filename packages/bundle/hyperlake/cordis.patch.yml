@@ -4,6 +4,7 @@
       name: '@cerebrixos/superharness-packs'
       config:
         maxAssetBytes: 1048576
+        allowPluginManagement: true
 
     - id: superharness-pack-data-engineering
       name: '@cerebrixos/superharness-pack-data-engineering'

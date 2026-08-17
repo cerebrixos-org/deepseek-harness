@@ -4,8 +4,10 @@
  * @module @cerebrixos/superharness-packs
  */
 
+import { execFile } from 'node:child_process'
 import { mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { promisify } from 'node:util'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { load } from 'js-yaml'
@@ -17,10 +19,14 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { AssembleContext } from '@deepseek-ai/dsh-system-prompt'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type {
+  CapabilityAssetAttachRequest, CapabilityAssetAttachment, CapabilityAssetRemoveRequest,
   CapabilityAttachmentRemoveRequest, CapabilityAttachmentUpsertRequest, CapabilityCreateRequest,
-  CapabilityDeleteRequest, CapabilityOutcome, CapabilityProviderAttachment, PackCatalogEntry,
-  PackCatalogSnapshot, PackConfigureRequest, PackOperationResult, PackSelectRequest,
-  PackSelectionResult, PackSetEnabledRequest,
+  CapabilityDeleteRequest, CapabilityOutcome, CapabilityOutcomesSetRequest, CapabilityProviderAttachment,
+  CapabilityResourceAttachment, CapabilityResourceRemoveRequest, CapabilityResourceUpsertRequest,
+  InstalledPluginView, PackCatalogEntry, PackCatalogSnapshot, PackConfigureRequest, PackOperationResult,
+  PackSelectRequest, PackSelectionResult, PackSetEnabledRequest, PluginInstallRequest,
+  PluginOperationResult, PluginRemoveRequest, PluginResourceDiscoverRequest, PluginResourceProviderView,
+  PluginResourceView,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -113,6 +119,10 @@ export interface Config {
   statePath?: string
   /** Hard deployment ceiling for pack-started autonomous goal rounds. */
   maxAutonomyRounds?: number
+  /** Profile whose third-party plugin dependencies are managed by the local UI. */
+  profileName?: string
+  /** Permit loopback UI package installation and removal. */
+  allowPluginManagement?: boolean
 }
 
 const DEFAULT_MAX_ASSET_BYTES = 1_048_576
@@ -135,6 +145,8 @@ export const Config: z<Config> = z.object({
   maxAssetBytes: z.number().step(1).min(1).default(DEFAULT_MAX_ASSET_BYTES),
   statePath: z.string().default(''),
   maxAutonomyRounds: z.number().step(1).min(1).default(64),
+  profileName: z.string().default('hyperlake'),
+  allowPluginManagement: z.boolean().default(false),
 })
 
 interface PersistedPackState {
@@ -142,6 +154,22 @@ interface PersistedPackState {
   bindings: Record<string, PackResourceBinding[]>
   customCapabilities: Record<string, CapabilityCreateRequest>
   attachments: CapabilityProviderAttachment[]
+  outcomes: Record<string, CapabilityOutcome[]>
+  assets: Record<string, CapabilityAssetAttachment[]>
+  resources: Record<string, CapabilityResourceAttachment[]>
+}
+
+/** Runtime resource discovery supplied by an installed plugin. */
+export interface PluginResourceProvider extends PluginResourceProviderView {
+  list: () => Promise<PluginResourceView[]>
+}
+
+const execFileAsync = promisify(execFile)
+
+interface LocalProfileManifest {
+  dependencies?: Record<string, string>
+  dsh?: { profile?: { bundles?: string[] } }
+  [key: string]: unknown
 }
 
 interface PackRegistrationOptions { defaultEnabled?: boolean }
@@ -152,6 +180,7 @@ declare module '@deepseek-ai/dsh-session' {
       packId: string
       version: string
       bindings: PackResourceBinding[]
+      resources: CapabilityResourceAttachment[]
       outcomes: CapabilityOutcome[]
       attachments: CapabilityProviderAttachment[]
       toolNames: string[]
@@ -330,6 +359,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
   private readonly maxAssetBytes: number
   private readonly maxAutonomyRounds: number
   private readonly statePath: string
+  private readonly profileName: string
+  private readonly allowPluginManagement: boolean
+  private readonly coreToolNames: Set<string>
+  private readonly resourceProviders = new Map<string, PluginResourceProvider>()
+  private restartRequired = false
   private state: PersistedPackState
 
   constructor(ctx: Context, config: Config = {}) {
@@ -345,6 +379,9 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     this.statePath = config.statePath?.trim() === '' || config.statePath === undefined
       ? dshHomePath('hyperlake-packs.json')
       : resolve(config.statePath)
+    this.profileName = config.profileName?.trim() || 'hyperlake'
+    this.allowPluginManagement = config.allowPluginManagement ?? false
+    this.coreToolNames = new Set(ctx.tools.schemas().map(tool => tool.name))
     this.state = this.readState()
     ctx.effect(() => ctx.systemPrompt.section({
       name: 'superharness:selected-pack',
@@ -357,6 +394,10 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     ctx.effect(() => ctx.tools.register(this.readAssetTool()), 'hyperlake-packs.read-asset-tool')
     ctx.effect(() => ctx.tools.register(this.activateGoalTool()), 'hyperlake-packs.activate-goal-tool')
     ctx.effect(() => ctx.tools.register(this.runRoutineTool()), 'hyperlake-packs.run-routine-tool')
+    for (const name of [
+      'superharness_pack_list', 'superharness_pack_describe', 'superharness_pack_validate',
+      'superharness_pack_asset_read', 'superharness_goal_activate', 'superharness_routine_run',
+    ]) this.coreToolNames.add(name)
     ctx.effect(() => ctx.on('agent/created', ({ agent }) => { this.applyToolRestriction(agent) }), 'hyperlake-packs.agent-restriction')
     ctx.effect(() => ctx.tools.guard((execution) => {
       const selected = execution.agent?.session.events.findLast(event => event.type === 'superharness/pack-selected')
@@ -383,6 +424,17 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     this.packs.set(id, pack)
     this.defaults.set(id, options.defaultEnabled === true)
     return () => { this.packs.delete(id); this.defaults.delete(id) }
+  }
+
+  /** Register resource discovery owned by one installed plugin. */
+  registerResourceProvider(provider: PluginResourceProvider): () => void {
+    if (!ID_PATTERN.test(provider.id)) throw new Error('resource provider id must be a lowercase logical id')
+    if (this.resourceProviders.has(provider.id)) throw new Error(`resource provider ${JSON.stringify(provider.id)} is already registered`)
+    this.resourceProviders.set(provider.id, {
+      ...provider,
+      resourceTypes: [...new Set(provider.resourceTypes)],
+    })
+    return () => { this.resourceProviders.delete(provider.id) }
   }
 
   private readState(): PersistedPackState {
@@ -427,10 +479,38 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
           try { return [this.parseAttachment(item, `attachments[${index}]`)] } catch { return [] }
         })
         : []
-      return { enabled, bindings, customCapabilities, attachments }
+      const outcomes: Record<string, CapabilityOutcome[]> = {}
+      const outcomeSource = optionalRecord(source.outcomes, 'outcomes')
+      for (const [packId, items] of Object.entries(outcomeSource)) {
+        try { outcomes[packId] = parseOutcomes(items) } catch { /* Ignore only the malformed override. */ }
+      }
+      const assets: Record<string, CapabilityAssetAttachment[]> = {}
+      const assetSource = optionalRecord(source.assets, 'assets')
+      for (const [packId, items] of Object.entries(assetSource)) {
+        if (!Array.isArray(items)) continue
+        assets[packId] = items.flatMap((item, index) => {
+          try {
+            const value = record(item, `assets.${packId}[${index}]`)
+            return [{
+              id: text(value.id, `assets.${packId}[${index}].id`),
+              sourcePackId: text(value.sourcePackId, `assets.${packId}[${index}].sourcePackId`),
+              sourceAssetId: text(value.sourceAssetId, `assets.${packId}[${index}].sourceAssetId`),
+            }]
+          } catch { return [] }
+        })
+      }
+      const resources: Record<string, CapabilityResourceAttachment[]> = {}
+      const resourceSource = optionalRecord(source.resources, 'resources')
+      for (const [packId, items] of Object.entries(resourceSource)) {
+        if (!Array.isArray(items)) continue
+        resources[packId] = items.flatMap((item, index) => {
+          try { return [this.parseResource(item, `resources.${packId}[${index}]`)] } catch { return [] }
+        })
+      }
+      return { enabled, bindings, customCapabilities, attachments, outcomes, assets, resources }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') this.ctx.logger.warn(`ignoring invalid pack state: ${String(error)}`)
-      return { enabled: {}, bindings: {}, customCapabilities: {}, attachments: [] }
+      return { enabled: {}, bindings: {}, customCapabilities: {}, attachments: [], outcomes: {}, assets: {}, resources: {} }
     }
   }
 
@@ -455,6 +535,20 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     }
   }
 
+  private parseResource(value: unknown, label: string): CapabilityResourceAttachment {
+    const source = record(value, label)
+    const id = text(source.id, `${label}.id`)
+    if (!ID_PATTERN.test(id)) throw new Error(`${label}.id must be a lowercase logical id`)
+    return {
+      id,
+      name: text(source.name, `${label}.name`),
+      description: text(source.description, `${label}.description`),
+      providerId: text(source.providerId, `${label}.providerId`),
+      resourceType: text(source.resourceType, `${label}.resourceType`),
+      resourceId: text(source.resourceId, `${label}.resourceId`),
+    }
+  }
+
   private customPack(capability: CapabilityCreateRequest): RegisteredPack {
     return {
       root: dirname(this.statePath),
@@ -469,6 +563,32 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
 
   private allPacks(): RegisteredPack[] {
     return [...this.packs.values(), ...Object.values(this.state.customCapabilities).map(capability => this.customPack(capability))]
+  }
+
+  private effectiveOutcomes(id: string, manifest: PackManifest): CapabilityOutcome[] {
+    return this.state.outcomes[id] ?? manifest.outcomes ?? []
+  }
+
+  private effectiveAssets(
+    id: string,
+    pack: RegisteredPack,
+  ): Array<{ asset: PackAsset; sourcePackId: string; sourceAssetId: string; attached: boolean }> {
+    const own = (pack.manifest.assets ?? []).map(asset => ({
+      asset, sourcePackId: pack.manifest.metadata.id, sourceAssetId: asset.id, attached: false,
+    }))
+    const selected = (this.state.assets[id] ?? []).flatMap((attachment) => {
+      try {
+        const source = this.get(attachment.sourcePackId)
+        const asset = source.manifest.assets?.find(candidate => candidate.id === attachment.sourceAssetId)
+        return asset === undefined ? [] : [{
+          asset: { ...asset, id: attachment.id },
+          sourcePackId: attachment.sourcePackId,
+          sourceAssetId: attachment.sourceAssetId,
+          attached: true,
+        }]
+      } catch { return [] }
+    })
+    return [...own, ...selected]
   }
 
   private persist(): void {
@@ -562,12 +682,13 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
         issues.push(`resource slot ${JSON.stringify(slot.id)} does not accept type ${JSON.stringify(binding.resourceType)}`)
       }
     }
-    const availableTools = new Set(this.availableTools().map(tool => tool.name))
+    const availableTools = new Map(this.availableTools().map(tool => [tool.name, tool]))
+    const pluginIds = new Set([
+      ...this.allPacks().map(item => item.manifest.metadata.id),
+      ...this.installedPlugins().map(item => item.packageName),
+    ])
     for (const attachment of this.effectiveAttachments(id)) {
-      if (attachment.providerId !== 'custom') {
-        const provider = installed.find(item => item.metadata.id === attachment.providerId && item.metadata.category === 'adapter')
-        if (provider === undefined) issues.push(`provider ${JSON.stringify(attachment.providerId)} is not an enabled adapter`)
-      }
+      if (!pluginIds.has(attachment.providerId)) issues.push(`provider ${JSON.stringify(attachment.providerId)} is not an installed plugin`)
       for (const outcomeId of attachment.outcomeIds) {
         if (!(pack.manifest.outcomes ?? []).some(outcome => outcome.id === outcomeId)) {
           issues.push(`attachment ${JSON.stringify(attachment.id)} names unknown outcome ${JSON.stringify(outcomeId)}`)
@@ -576,16 +697,91 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       for (const toolName of attachment.toolNames) {
         if (!availableTools.has(toolName)) {
           issues.push(`attachment ${JSON.stringify(attachment.id)} references unavailable tool ${JSON.stringify(toolName)}`)
+        } else if (availableTools.get(toolName)?.core === true) {
+          issues.push(`core tool ${JSON.stringify(toolName)} is already available to every capability`)
         }
       }
     }
     return { packId: id, valid: issues.length === 0, installedAdapters, bindings, issues }
   }
 
-  private availableTools(): Array<{ name: string; description: string }> {
+  private profileDir(): string {
+    return dshHomePath('profiles', this.profileName)
+  }
+
+  private readProfile(): LocalProfileManifest {
+    return JSON.parse(readFileSync(join(this.profileDir(), 'package.json'), 'utf8')) as LocalProfileManifest
+  }
+
+  private writeProfile(profile: LocalProfileManifest): void {
+    const path = join(this.profileDir(), 'package.json')
+    const temporary = `${path}.${process.pid}.tmp`
+    writeFileSync(temporary, `${JSON.stringify(profile, null, 2)}\n`, { mode: 0o600 })
+    renameSync(temporary, path)
+  }
+
+  private installedPlugins(): InstalledPluginView[] {
+    try {
+      const profile = this.readProfile()
+      return Object.entries(profile.dependencies ?? {}).map(([packageName, source]) => {
+        try {
+          const manifest = JSON.parse(readFileSync(
+            join(this.profileDir(), 'node_modules', ...packageName.split('/'), 'package.json'),
+            'utf8',
+          )) as {
+            version?: string
+            description?: string
+            dsh?: { bundle?: { patch?: string } }
+          }
+          return {
+            packageName,
+            version: manifest.version ?? 'unknown',
+            source,
+            description: manifest.description ?? packageName,
+            bundle: manifest.dsh?.bundle?.patch !== undefined,
+            restartRequired: this.restartRequired,
+          }
+        } catch {
+          return { packageName, version: 'unresolved', source, description: packageName, bundle: false, restartRequired: this.restartRequired }
+        }
+      }).sort((left, right) => left.packageName.localeCompare(right.packageName))
+    } catch { return [] }
+  }
+
+  private reconcileProfileBundles(): void {
+    const dir = this.profileDir()
+    const profile = this.readProfile()
+    const dependencies = Object.keys(profile.dependencies ?? {})
+    const managed = new Set(dependencies)
+    const bundles = [...(profile.dsh?.profile?.bundles ?? [])].filter(name => !managed.has(name))
+    for (const packageName of dependencies) {
+      try {
+        const manifest = JSON.parse(readFileSync(join(dir, 'node_modules', ...packageName.split('/'), 'package.json'), 'utf8')) as {
+          dsh?: { bundle?: { patch?: string } }
+        }
+        if (manifest.dsh?.bundle?.patch !== undefined) bundles.push(packageName)
+      } catch { /* pnpm diagnostics remain authoritative for unresolved dependencies. */ }
+    }
+    profile.dsh = { ...profile.dsh, profile: { ...profile.dsh?.profile, bundles: [...new Set(bundles)] } }
+    this.writeProfile(profile)
+  }
+
+  private validatePluginSource(raw: string): string {
+    const source = raw.trim()
+    if (source === '' || source.length > 2048 || source.startsWith('-')) throw new Error('Enter an npm package, Git URL, GitHub specifier, or absolute local path.')
+    if (/^(?:file:|link:)?\.{1,2}(?:[/\\]|$)/.test(source)) throw new Error('Local plugin paths must be absolute.')
+    const urlText = source.replace(/^git\+/, '')
+    if (/^https?:\/\//.test(urlText)) {
+      const url = new URL(urlText)
+      if (url.username !== '' || url.password !== '') throw new Error('Do not embed credentials in a plugin URL; use npm configuration or an SSH agent.')
+    }
+    return source
+  }
+
+  private availableTools(): Array<{ name: string; description: string; core: boolean }> {
     return this.ctx.tools.schemas()
       .filter(tool => tool.name !== 'run_code')
-      .map(tool => ({ name: tool.name, description: tool.description }))
+      .map(tool => ({ name: tool.name, description: tool.description, core: this.coreToolNames.has(tool.name) }))
       .sort((left, right) => left.name.localeCompare(right.name))
   }
 
@@ -609,7 +805,8 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
   }
 
   private entry(id: string): PackCatalogEntry {
-    const { manifest } = this.get(id)
+    const pack = this.get(id)
+    const { manifest } = pack
     const bindings = this.state.bindings[id] ?? []
     const validation = this.validate(id, bindings)
     const effectiveAttachments = this.effectiveAttachments(id)
@@ -619,17 +816,19 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       installed: true, userCreated: this.state.customCapabilities[id] !== undefined,
       enabled: this.enabled(id), ready: this.enabled(id) && validation.valid,
       contributesTo: manifest.contributesTo ?? [], provides: manifest.provides ?? [],
-      outcomes: manifest.outcomes ?? [], effectiveAttachments,
+      outcomes: this.effectiveOutcomes(id, manifest), effectiveAttachments,
       effectiveTools: [...new Set(effectiveAttachments.flatMap(attachment => attachment.toolNames))].sort(),
       requiresPacks: manifest.requires?.packs ?? [],
       requiresCapabilities: manifest.requires?.capabilities ?? [],
       acceptedAdapters: manifest.requires?.oneOfAdapters ?? [],
       resourceSlots: manifest.resourceSlots ?? [], bindings,
-      assets: (manifest.assets ?? []).map(asset => ({
+      resources: this.state.resources[id] ?? [],
+      assets: this.effectiveAssets(id, pack).map(({ asset, sourcePackId, sourceAssetId, attached }) => ({
         id: asset.id, type: asset.type, description: asset.description,
         ...(asset.dialect === undefined ? {} : { dialect: asset.dialect }),
         ...(asset.portable === undefined ? {} : { portable: asset.portable }),
         access: asset.access ?? 'read', approval: asset.approval ?? 'none',
+        sourcePackId, sourceAssetId, attached,
       })),
       issues: validation.issues,
     }
@@ -641,12 +840,19 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
    */
   @Remote('catalog')
   catalog(): PackCatalogSnapshot {
+    const tools = this.availableTools()
     return {
       entries: this.list().map(item => this.entry(item.id)),
-      availableTools: this.availableTools(),
+      availableTools: tools.filter(tool => !tool.core),
+      coreTools: tools.filter(tool => tool.core),
       attachments: this.state.attachments.map(attachment => ({
         ...attachment, outcomeIds: [...attachment.outcomeIds], toolNames: [...attachment.toolNames],
       })),
+      resourceProviders: [...this.resourceProviders.values()].map(({ list: _list, ...provider }) => ({
+        ...provider,
+        resourceTypes: [...provider.resourceTypes],
+      })),
+      installedPlugins: this.installedPlugins(),
     }
   }
 
@@ -703,6 +909,137 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return { ok: true, packId: id, entry: this.entry(id) }
   }
 
+  /** Replace outcomes without changing installed plugin contributions. */
+  @Remote('setOutcomes')
+  setOutcomes(request: CapabilityOutcomesSetRequest): PackOperationResult {
+    const pack = this.get(request.packId)
+    let outcomes: CapabilityOutcome[]
+    try { outcomes = parseOutcomes(request.outcomes) } catch (error) {
+      return { ok: false, packId: request.packId, message: String(error) }
+    }
+    if (outcomes.length === 0) return { ok: false, packId: request.packId, message: 'Define at least one outcome.' }
+    this.state.outcomes[request.packId] = outcomes
+    const custom = this.state.customCapabilities[request.packId]
+    if (custom !== undefined) this.state.customCapabilities[request.packId] = { ...custom, outcomes }
+    this.persist()
+    return { ok: true, packId: request.packId, entry: this.entry(pack.manifest.metadata.id) }
+  }
+
+  /** Attach one immutable asset exported by another installed pack plugin. */
+  @Remote('attachAsset')
+  attachAsset(request: CapabilityAssetAttachRequest): PackOperationResult {
+    this.get(request.packId)
+    const source = this.get(request.sourcePackId)
+    const sourceAsset = source.manifest.assets?.find(asset => asset.id === request.sourceAssetId)
+    if (sourceAsset === undefined) return { ok: false, packId: request.packId, message: 'The source plugin does not export that asset.' }
+    if (request.packId === request.sourcePackId) return { ok: false, packId: request.packId, message: 'The asset is already part of this plugin.' }
+    const id = `${request.sourcePackId}.${request.sourceAssetId}`
+    const current = this.state.assets[request.packId] ?? []
+    if (current.some(item => item.id === id)) return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
+    this.state.assets[request.packId] = [...current, { id, sourcePackId: request.sourcePackId, sourceAssetId: request.sourceAssetId }]
+    this.persist()
+    return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
+  }
+
+  /** Remove a selected asset without modifying its source plugin. */
+  @Remote('removeAsset')
+  removeAsset(request: CapabilityAssetRemoveRequest): PackOperationResult {
+    this.get(request.packId)
+    this.state.assets[request.packId] = (this.state.assets[request.packId] ?? []).filter(item => item.id !== request.attachmentId)
+    this.persist()
+    return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
+  }
+
+  /** Attach a resource reference selected from an installed provider plugin. */
+  @Remote('upsertResource')
+  upsertResource(request: CapabilityResourceUpsertRequest): PackOperationResult {
+    this.get(request.packId)
+    let resource: CapabilityResourceAttachment
+    try { resource = this.parseResource(request.resource, 'resource') } catch (error) {
+      return { ok: false, packId: request.packId, message: String(error) }
+    }
+    const provider = this.resourceProviders.get(resource.providerId)
+    if (provider === undefined) return { ok: false, packId: request.packId, message: 'Select an installed resource-provider plugin.' }
+    if (!provider.resourceTypes.includes(resource.resourceType)) return { ok: false, packId: request.packId, message: 'The provider does not support this resource type.' }
+    this.state.resources[request.packId] = [
+      ...(this.state.resources[request.packId] ?? []).filter(item => item.id !== resource.id), resource,
+    ]
+    this.persist()
+    return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
+  }
+
+  /** Remove one capability resource reference. */
+  @Remote('removeResource')
+  removeResource(request: CapabilityResourceRemoveRequest): PackOperationResult {
+    this.get(request.packId)
+    this.state.resources[request.packId] = (this.state.resources[request.packId] ?? []).filter(item => item.id !== request.resourceId)
+    this.persist()
+    return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
+  }
+
+  /** Discover authorized resources without storing credentials in capability state. */
+  @Remote('discoverResources')
+  async discoverResources(request: PluginResourceDiscoverRequest): Promise<PluginResourceView[]> {
+    const provider = this.resourceProviders.get(request.providerId)
+    if (provider === undefined) throw new Error('Resource provider is not installed or active.')
+    return (await provider.list()).map(resource => ({ ...resource, providerId: provider.id }))
+  }
+
+  /** Install an npm, Git, private-SSH, or local bundle into this profile. */
+  @Remote('installPlugin')
+  async installPlugin(request: PluginInstallRequest): Promise<PluginOperationResult> {
+    if (!this.allowPluginManagement) return { ok: false, message: 'Plugin management is disabled for this deployment.', restartRequired: false }
+    if (!request.confirmed) return { ok: false, message: 'Confirm installation before modifying the local profile.', restartRequired: false }
+    let source: string
+    try { source = this.validatePluginSource(request.source) } catch (error) {
+      return { ok: false, message: String(error), restartRequired: false }
+    }
+    const before = new Map(this.installedPlugins().map(plugin => [plugin.packageName, plugin.source]))
+    try {
+      await execFileAsync('pnpm', ['add', '--save-exact', source], {
+        cwd: this.profileDir(),
+        maxBuffer: 4 * 1024 * 1024,
+      })
+      this.reconcileProfileBundles()
+      this.restartRequired = true
+      const after = this.installedPlugins()
+      const changed = after.find(plugin => before.get(plugin.packageName) !== plugin.source)
+        ?? after.find(plugin => plugin.source === source)
+      return {
+        ok: true,
+        message: 'Plugin installed. Restart SuperHarness to activate its contributions.',
+        restartRequired: true,
+        ...(changed === undefined ? {} : { packageName: changed.packageName }),
+      }
+    } catch (error) {
+      const detail = error as { stderr?: string; message?: string }
+      return { ok: false, message: detail.stderr?.trim() || detail.message || String(error), restartRequired: false }
+    }
+  }
+
+  /** Remove one dependency-managed plugin from this profile. */
+  @Remote('removePlugin')
+  async removePlugin(request: PluginRemoveRequest): Promise<PluginOperationResult> {
+    if (!this.allowPluginManagement) return { ok: false, message: 'Plugin management is disabled for this deployment.', restartRequired: false }
+    if (!request.confirmed) return { ok: false, message: 'Confirm removal before modifying the local profile.', restartRequired: false }
+    if (!this.installedPlugins().some(plugin => plugin.packageName === request.packageName)) {
+      return { ok: false, message: 'Only dependency-managed profile plugins can be removed here.', restartRequired: false }
+    }
+    try {
+      await execFileAsync('pnpm', ['remove', request.packageName], { cwd: this.profileDir(), maxBuffer: 4 * 1024 * 1024 })
+      const profile = this.readProfile()
+      if (profile.dsh?.profile !== undefined) {
+        profile.dsh.profile.bundles = (profile.dsh.profile.bundles ?? []).filter(name => name !== request.packageName)
+        this.writeProfile(profile)
+      }
+      this.restartRequired = true
+      return { ok: true, packageName: request.packageName, message: 'Plugin removed. Restart SuperHarness to finish unloading it.', restartRequired: true }
+    } catch (error) {
+      const detail = error as { stderr?: string; message?: string }
+      return { ok: false, message: detail.stderr?.trim() || detail.message || String(error), restartRequired: false }
+    }
+  }
+
   /**
    * Delete only a user-created capability and its scoped attachments.
    * @param request - User-created capability id.
@@ -714,6 +1051,9 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     this.state.customCapabilities = withoutKey(this.state.customCapabilities, request.packId)
     this.state.enabled = withoutKey(this.state.enabled, request.packId)
     this.state.bindings = withoutKey(this.state.bindings, request.packId)
+    this.state.outcomes = withoutKey(this.state.outcomes, request.packId)
+    this.state.assets = withoutKey(this.state.assets, request.packId)
+    this.state.resources = withoutKey(this.state.resources, request.packId)
     this.state.attachments = this.state.attachments.filter(attachment => attachment.capabilityId !== request.packId)
     this.persist()
     return { ok: true, packId: request.packId }
@@ -736,9 +1076,16 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       if (capabilityId === undefined) return { ok: false, packId: 'shared', message: 'Capability id is required.' }
       try { this.get(capabilityId) } catch (error) { return { ok: false, packId: capabilityId, message: String(error) } }
     }
-    const available = new Set(this.availableTools().map(tool => tool.name))
+    const plugins = new Set([
+      ...this.allPacks().map(item => item.manifest.metadata.id),
+      ...this.installedPlugins().map(item => item.packageName),
+    ])
+    if (!plugins.has(attachment.providerId)) return { ok: false, packId: attachment.capabilityId ?? 'shared', message: 'Select an installed plugin.' }
+    const available = new Map(this.availableTools().map(tool => [tool.name, tool]))
     const missing = attachment.toolNames.filter(toolName => !available.has(toolName))
     if (missing.length > 0) return { ok: false, packId: attachment.capabilityId ?? 'shared', message: `Unavailable tools: ${missing.join(', ')}` }
+    const core = attachment.toolNames.filter(toolName => available.get(toolName)?.core === true)
+    if (core.length > 0) return { ok: false, packId: attachment.capabilityId ?? 'shared', message: `Core tools are already universal: ${core.join(', ')}` }
     this.state.attachments = [...this.state.attachments.filter(item => item.id !== attachment.id), attachment]
     this.persist()
     return { ok: true, packId: attachment.capabilityId ?? 'shared' }
@@ -784,6 +1131,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       packId: request.packId,
       version: pack.manifest.metadata.version,
       bindings: entry.bindings.map(binding => ({ ...binding })),
+      resources: entry.resources.map(resource => ({ ...resource })),
       outcomes: entry.outcomes.map(outcome => ({ ...outcome })),
       attachments: attachments.map(attachment => ({
         ...attachment, outcomeIds: [...attachment.outcomeIds], toolNames: [...attachment.toolNames],
@@ -805,12 +1153,14 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     if (pack === undefined || pack.manifest.metadata.version !== selected.data.version) return ''
     const contributions = this.allPacks()
       .filter(item => this.enabled(item.manifest.metadata.id) && item.manifest.contributesTo?.includes(selected.data.packId))
-    const assets = [pack, ...contributions].flatMap(item => item.manifest.assets ?? [])
+    const assets = this.effectiveAssets(selected.data.packId, pack).map(item => item.asset)
+      .concat(contributions.flatMap(item => item.manifest.assets ?? []))
     const approval = assets.some(asset => asset.access === 'mutate' || asset.approval === 'required')
       ? 'Mutating actions require the platform approval flow before execution.' : ''
     return [
       `Active Hyperlake capability: ${pack.manifest.metadata.name} (${selected.data.packId}@${selected.data.version}).`,
       `Authorized resource bindings: ${JSON.stringify(selected.data.bindings)}.`,
+      `Attached resources: ${JSON.stringify(selected.data.resources)}.`,
       `Supported outcomes: ${selected.data.outcomes.map(outcome => `${outcome.name}: ${outcome.description}`).join('; ') || 'none declared'}.`,
       `Capability tools: ${selected.data.toolNames.join(', ') || 'no managed tools attached'}.`,
       'Use only these bindings. Inspect exported routines, models, evaluations, and references before acting.',
@@ -912,14 +1262,17 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     if (!entry.enabled || !entry.ready) {
       throw new Error(entry.issues.join('; ') || `pack ${JSON.stringify(packId)} is not ready`)
     }
-    const pack = this.get(packId)
-    const asset = pack.manifest.assets?.find(candidate => candidate.id === assetId)
-    if (asset === undefined || asset.type !== expectedType) {
+    const target = this.get(packId)
+    const selectedAsset = this.effectiveAssets(packId, target).find(candidate => candidate.asset.id === assetId)
+    if (selectedAsset === undefined || selectedAsset.asset.type !== expectedType) {
       throw new Error(`${expectedType} ${JSON.stringify(assetId)} is not exported by pack ${JSON.stringify(packId)}`)
     }
-    const path = resolveAssetPath(pack.root, asset)
+    const source = this.get(selectedAsset.sourcePackId)
+    const sourceAsset = source.manifest.assets?.find(candidate => candidate.id === selectedAsset.sourceAssetId)
+    if (sourceAsset === undefined) throw new Error(`source asset ${JSON.stringify(selectedAsset.sourceAssetId)} is unavailable`)
+    const path = resolveAssetPath(source.root, sourceAsset)
     const size = statSync(path).size
-    if (size > this.maxAssetBytes) throw new Error(`asset ${JSON.stringify(asset.id)} exceeds the ${this.maxAssetBytes}-byte read limit`)
+    if (size > this.maxAssetBytes) throw new Error(`asset ${JSON.stringify(assetId)} exceeds the ${this.maxAssetBytes}-byte read limit`)
     const document = record(load(readFileSync(path, 'utf8')), `${expectedType} ${assetId}`)
     const expectedApi = `${expectedType}s.hyperlake.cloud/v1alpha1`
     const expectedKind = expectedType === 'goal' ? 'Goal' : 'Routine'
@@ -927,10 +1280,10 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       throw new Error(`${expectedType} ${JSON.stringify(assetId)} must use ${expectedApi} and kind ${expectedKind}`)
     }
     const metadata = record(document.metadata, `${expectedType} ${assetId}.metadata`)
-    if (text(metadata.id, `${expectedType} ${assetId}.metadata.id`) !== asset.id) {
-      throw new Error(`${expectedType} metadata.id must match exported asset id ${JSON.stringify(asset.id)}`)
+    if (text(metadata.id, `${expectedType} ${assetId}.metadata.id`) !== sourceAsset.id) {
+      throw new Error(`${expectedType} metadata.id must match source asset id ${JSON.stringify(sourceAsset.id)}`)
     }
-    return { asset, document, entry }
+    return { asset: sourceAsset, document, entry }
   }
 
   private autonomyRounds(value: number | undefined): number {
@@ -986,6 +1339,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
           `Observation contract: ${JSON.stringify(spec.observe ?? {})}.`,
           `Allowed remediation routines: ${JSON.stringify(spec.allowedRoutines ?? [])}.`,
           `Authorized resource bindings: ${JSON.stringify(entry.bindings)}.`,
+          `Attached resources: ${JSON.stringify(entry.resources)}.`,
           'Use only tools attached to the selected capability. Treat every external mutation as approval-required unless its governed tool proves otherwise. Verify the criteria with evidence before completing the goal.',
         ].join(' ')
         const goal = await this.startPackGoal(exec, objective, rounds)
@@ -1021,6 +1375,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
           `Follow these declared steps in order: ${JSON.stringify(spec.steps)}.`,
           `Routine limits: ${JSON.stringify(spec.limits ?? {})}. Deployment round cap: ${rounds}.`,
           `Authorized resource bindings: ${JSON.stringify(entry.bindings)}.`,
+          `Attached resources: ${JSON.stringify(entry.resources)}.`,
           asset.access === 'mutate' || asset.approval === 'required'
             ? 'The routine is mutation-capable: obtain approval through the governed tool before every external mutation.'
             : 'Do not perform external mutations unless a declared step requires one and its governed tool obtains approval.',
@@ -1054,14 +1409,17 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       execute: (args) => {
         if (!this.enabled(args.pack_id)) throw new Error(`SuperHarness pack ${JSON.stringify(args.pack_id)} is disabled`)
         const pack = this.get(args.pack_id)
-        const asset = pack.manifest.assets?.find(candidate => candidate.id === args.asset_id)
-        if (!asset) throw new Error(`asset ${JSON.stringify(args.asset_id)} is not exported by pack ${JSON.stringify(args.pack_id)}`)
-        const path = resolveAssetPath(pack.root, asset)
+        const selectedAsset = this.effectiveAssets(args.pack_id, pack).find(candidate => candidate.asset.id === args.asset_id)
+        if (!selectedAsset) throw new Error(`asset ${JSON.stringify(args.asset_id)} is not exported by pack ${JSON.stringify(args.pack_id)}`)
+        const source = this.get(selectedAsset.sourcePackId)
+        const asset = source.manifest.assets?.find(candidate => candidate.id === selectedAsset.sourceAssetId)
+        if (!asset) throw new Error(`source asset ${JSON.stringify(selectedAsset.sourceAssetId)} is unavailable`)
+        const path = resolveAssetPath(source.root, asset)
         const size = statSync(path).size
         if (size > this.maxAssetBytes) throw new Error(`asset ${JSON.stringify(asset.id)} exceeds the ${this.maxAssetBytes}-byte read limit`)
         return Promise.resolve({
           packId: pack.manifest.metadata.id,
-          assetId: asset.id,
+          assetId: args.asset_id,
           type: asset.type,
           description: asset.description,
           content: readFileSync(path, 'utf8'),

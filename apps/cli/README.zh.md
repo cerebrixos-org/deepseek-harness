@@ -62,9 +62,9 @@ npx @cerebrixos/hyperlake-superharness
 ```
 
 6. 在本地 Web 界面中配置受支持的模型提供方。模型提供方凭据与 Hyperlake 凭据相互独立。
-7. 打开 **设置 → 能力**，启用能力，并使用不透明资源 id 绑定所有必需资源槽位。
-8. 在会话第一条消息之前选择能力。
-9. 可直接请求受治理的工作，例如：`检查可用的受治理数据集，并查询过去 30 天的销售总额。`
+7. 打开 **设置 → 插件**，安装可选的 npm、Git、私有 SSH 或绝对本地路径插件。确认来源并在安装后重启。
+8. 打开 **设置 → 能力**，创建或启用能力，编辑成果，发现受治理资源，并附加已安装插件导出的内容。
+9. 在会话第一条消息之前选择能力，然后可直接请求受治理的工作，例如：`检查可用的受治理数据集，并查询过去 30 天的销售总额。`
 10. 对于有边界的自主工作，可以请求：`激活 maintain-data-freshness 目标，且仅在成功标准验证后停止。` 或 `为源 raw.orders 和目标 silver.orders 运行 build-silver-layer 流程。`
 
 笔记本电脑通过随包提供的 CLI/MCP 进程直接调用 Hyperlake 控制平面和已授权集群端点。选择能力不会把客户数据或凭据复制到 SuperHarness 注册表中，目标操作仍会执行 Hyperlake 身份、策略和审批检查。
@@ -82,6 +82,18 @@ SUPERHARNESS_HYPERLAKE_DISABLED=1 npx @cerebrixos/hyperlake-superharness --dump-
 ```sh
 npx @cerebrixos/hyperlake-superharness --profile headless "inspect platform health"
 ```
+
+## 插件与能力
+
+Harness 核心工具对所有能力都可用。插件为可选工具、资源提供方、资产、评估和成果提供来源。可在 **设置 → 插件** 中安装插件，或使用等效 CLI 命令：
+
+```sh
+npx @cerebrixos/hyperlake-superharness plugin --profile hyperlake add <npm-package-or-git-source>
+```
+
+私有 npm 包应使用用户 npm 配置完成身份验证；私有 Git 仓库应使用 SSH URL 和用户 SSH agent。切勿在 URL 中嵌入令牌。安装或移除后必须重启，配置才能加载更改后的插件。
+
+插件页面只列出已安装的贡献。能力可以组合这些贡献：成果可编辑；受治理资源通过已安装提供方发现，并以不透明 ID 存储；资产和评估保留不可变的来源插件信息；可选工具可以跨能力共享，也可以仅属于一个能力。基础 Harness 工具不会在能力配置中重复出现。
 
 ## 能力包
 
