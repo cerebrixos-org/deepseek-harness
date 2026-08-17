@@ -26,6 +26,24 @@ Pack validation does not grant access. It proves composition readiness; the conn
 
 The shipped `hyperlake` profile composes the base web Harness, the SuperHarness registry, the Data Engineering capability, its Capability Library UI, and the Hyperlake adapter. The Settings library reports first-party outcomes and resource availability without exposing credentials or duplicating Rails state. Set `SUPERHARNESS_HYPERLAKE_DISABLED=1` to inspect or boot the profile without starting the CLI MCP process.
 
+## Upstream compatibility
+
+Test the latest DeepSeek Harness merge without changing the current branch:
+
+```sh
+pnpm run upgrade:upstream:check
+```
+
+The command fetches `upstream/master`, creates a disposable detached worktree, merges the upstream commit there, installs the frozen lockfile, checks workspace constraints and types, runs the Hyperlake integration suite, builds the client and production Web application, and composes the keyless Hyperlake profile. Add `-- --full` to run the complete repository gate suite as well.
+
+After the isolated check passes, apply that exact tested upstream commit to the clean current branch:
+
+```sh
+pnpm run upgrade:upstream:apply
+```
+
+Neither mode pushes, publishes, or changes registry state. The apply mode refuses a non-`HEAD` base, a dirty worktree, or a branch whose HEAD changes while verification is running.
+
 Additional pack bundles remain explicit profile plugins. This keeps tenant-selected accelerator content separate from the base install and allows the same capability pack to run through different adapters.
 
 ## Future Rails Agent Mapping

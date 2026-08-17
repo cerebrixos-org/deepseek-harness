@@ -11,6 +11,6 @@
         serverName: hyperlake
         transport: stdio
         command: !!js process.env.SUPERHARNESS_HYPERLAKE_COMMAND || 'hyperlake'
-        args: !!js process.env.SUPERHARNESS_HYPERLAKE_SCRIPT ? [process.env.SUPERHARNESS_HYPERLAKE_SCRIPT, 'mcp', 'serve', '--stdio'] : ['mcp', 'serve', '--stdio']
+        args: !!js "process.env.SUPERHARNESS_HYPERLAKE_SCRIPT ? [process.env.SUPERHARNESS_HYPERLAKE_SCRIPT, 'mcp', 'serve', '--stdio'] : ['mcp', 'serve', '--stdio']"
         failOnStartupError: true
         toolCallTimeoutMs: 120000
