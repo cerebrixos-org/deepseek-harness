@@ -16,8 +16,10 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { AssembleContext } from '@deepseek-ai/dsh-system-prompt'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type {
-  PackCatalogEntry, PackCatalogSnapshot, PackConfigureRequest, PackOperationResult,
-  PackSelectRequest, PackSelectionResult, PackSetEnabledRequest,
+  CapabilityAttachmentRemoveRequest, CapabilityAttachmentUpsertRequest, CapabilityCreateRequest,
+  CapabilityDeleteRequest, CapabilityOutcome, CapabilityProviderAttachment, PackCatalogEntry,
+  PackCatalogSnapshot, PackConfigureRequest, PackOperationResult, PackSelectRequest,
+  PackSelectionResult, PackSetEnabledRequest,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -76,6 +78,8 @@ export interface PackManifest {
     oneOfAdapters?: string[]
   }
   provides?: string[]
+  /** User-facing results this capability or solution is designed to produce. */
+  outcomes?: CapabilityOutcome[]
   /** Existing packs extended by this pack's namespaced assets. */
   contributesTo?: string[]
   resourceSlots?: PackResourceSlot[]
@@ -132,6 +136,8 @@ export const Config: z<Config> = z.object({
 interface PersistedPackState {
   enabled: Record<string, boolean>
   bindings: Record<string, PackResourceBinding[]>
+  customCapabilities: Record<string, CapabilityCreateRequest>
+  attachments: CapabilityProviderAttachment[]
 }
 
 interface PackRegistrationOptions { defaultEnabled?: boolean }
@@ -142,6 +148,10 @@ declare module '@deepseek-ai/dsh-session' {
       packId: string
       version: string
       bindings: PackResourceBinding[]
+      outcomes: CapabilityOutcome[]
+      attachments: CapabilityProviderAttachment[]
+      toolNames: string[]
+      managedToolNames?: string[]
     }
   }
 }
@@ -168,6 +178,28 @@ function stringList(value: unknown, label: string): string[] {
 
 function optionalRecord(value: unknown, label: string): Record<string, unknown> {
   return value === undefined ? {} : record(value, label)
+}
+
+function withoutKey<T>(source: Record<string, T>, key: string): Record<string, T> {
+  return Object.fromEntries(Object.entries(source).filter(([candidate]) => candidate !== key))
+}
+
+function parseOutcomes(value: unknown, fallback: string[] = []): CapabilityOutcome[] {
+  const source = value === undefined ? fallback : value
+  if (!Array.isArray(source)) throw new Error('outcomes must be an array')
+  const outcomes = source.map((item, index): CapabilityOutcome => {
+    if (typeof item === 'string') return { id: text(item, `outcomes[${index}]`), name: item, description: item }
+    const outcome = record(item, `outcomes[${index}]`)
+    const id = text(outcome.id, `outcomes[${index}].id`)
+    if (!ID_PATTERN.test(id)) throw new Error(`invalid outcome id ${JSON.stringify(id)}`)
+    return {
+      id,
+      name: text(outcome.name, `outcomes[${index}].name`),
+      description: text(outcome.description, `outcomes[${index}].description`),
+    }
+  })
+  if (new Set(outcomes.map(outcome => outcome.id)).size !== outcomes.length) throw new Error('outcome ids must be unique')
+  return outcomes
 }
 
 /** Parse and validate one untrusted YAML manifest value. */
@@ -232,6 +264,7 @@ export function parsePackManifest(value: unknown): PackManifest {
   })
   if (new Set(resourceSlots.map(slot => slot.id)).size !== resourceSlots.length) throw new Error('resource slot ids must be unique')
 
+  const provides = stringList(source.provides, 'provides')
   return {
     apiVersion: 'packs.hyperlake.cloud/v1alpha1',
     kind: 'SuperHarnessPack',
@@ -243,7 +276,8 @@ export function parsePackManifest(value: unknown): PackManifest {
       description: text(metadata.description, 'metadata.description'),
     },
     requires,
-    provides: stringList(source.provides, 'provides'),
+    provides,
+    outcomes: parseOutcomes(source.outcomes, category === 'adapter' ? [] : provides),
     contributesTo: stringList(source.contributesTo, 'contributesTo'),
     resourceSlots,
     assets: parsedAssets,
@@ -304,12 +338,24 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     ctx.effect(() => ctx.tools.register(this.describeTool()), 'hyperlake-packs.describe-tool')
     ctx.effect(() => ctx.tools.register(this.validateTool()), 'hyperlake-packs.validate-tool')
     ctx.effect(() => ctx.tools.register(this.readAssetTool()), 'hyperlake-packs.read-asset-tool')
+    ctx.effect(() => ctx.on('agent/created', ({ agent }) => { this.applyToolRestriction(agent) }), 'hyperlake-packs.agent-restriction')
+    ctx.effect(() => ctx.tools.guard((execution) => {
+      const selected = execution.agent?.session.events.findLast(event => event.type === 'superharness/pack-selected')
+      if (selected?.type !== 'superharness/pack-selected') return undefined
+      const managed = new Set([
+        ...(selected.data.managedToolNames ?? []),
+        ...this.state.attachments.flatMap(attachment => attachment.toolNames),
+      ])
+      return managed.has(execution.name) && !selected.data.toolNames.includes(execution.name)
+        ? `Tool ${JSON.stringify(execution.name)} is not attached to the selected Hyperlake capability.`
+        : undefined
+    }), 'hyperlake-packs.execution-guard')
   }
 
   /** Register one validated pack for the calling plugin's effect lifetime. */
   register(pack: RegisteredPack, options: PackRegistrationOptions = {}): () => void {
     const id = pack.manifest.metadata.id
-    if (this.packs.has(id)) throw new Error(`SuperHarness pack ${JSON.stringify(id)} is already registered`)
+    if (this.packs.has(id) || this.state.customCapabilities[id] !== undefined) throw new Error(`SuperHarness pack ${JSON.stringify(id)} is already registered`)
     this.packs.set(id, pack)
     this.defaults.set(id, options.defaultEnabled === true)
     return () => { this.packs.delete(id); this.defaults.delete(id) }
@@ -324,6 +370,8 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
         ? source.enabled as Record<string, unknown> : {}
       const bindingsSource = typeof source.bindings === 'object' && source.bindings !== null && !Array.isArray(source.bindings)
         ? source.bindings as Record<string, unknown> : {}
+      const customSource = typeof source.customCapabilities === 'object' && source.customCapabilities !== null && !Array.isArray(source.customCapabilities)
+        ? source.customCapabilities as Record<string, unknown> : {}
       const enabled = Object.fromEntries(Object.entries(enabledSource).filter(([, item]) => typeof item === 'boolean')) as Record<string, boolean>
       const bindings: Record<string, PackResourceBinding[]> = {}
       for (const [packId, items] of Object.entries(bindingsSource)) {
@@ -337,11 +385,66 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
         }).map(item => ({ slotId: item.slotId.trim(), resourceType: item.resourceType.trim(), resourceId: item.resourceId.trim() }))
         bindings[packId] = accepted
       }
-      return { enabled, bindings }
+      const customCapabilities: Record<string, CapabilityCreateRequest> = {}
+      for (const [id, item] of Object.entries(customSource)) {
+        try {
+          const capability = record(item, `customCapabilities.${id}`)
+          if (id !== capability.id || !ID_PATTERN.test(id)) continue
+          customCapabilities[id] = {
+            id,
+            name: text(capability.name, `customCapabilities.${id}.name`),
+            description: text(capability.description, `customCapabilities.${id}.description`),
+            outcomes: parseOutcomes(capability.outcomes),
+          }
+        } catch { /* Ignore only the malformed custom entry. */ }
+      }
+      const attachments = Array.isArray(source.attachments)
+        ? source.attachments.flatMap((item, index) => {
+          try { return [this.parseAttachment(item, `attachments[${index}]`)] } catch { return [] }
+        })
+        : []
+      return { enabled, bindings, customCapabilities, attachments }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') this.ctx.logger.warn(`ignoring invalid pack state: ${String(error)}`)
-      return { enabled: {}, bindings: {} }
+      return { enabled: {}, bindings: {}, customCapabilities: {}, attachments: [] }
     }
+  }
+
+  private parseAttachment(value: unknown, label: string): CapabilityProviderAttachment {
+    const source = record(value, label)
+    const id = text(source.id, `${label}.id`)
+    if (!ID_PATTERN.test(id)) throw new Error(`${label}.id must be a lowercase logical id`)
+    const scope = source.scope === 'shared' ? 'shared' : source.scope === 'capability' ? 'capability' : undefined
+    if (scope === undefined) throw new Error(`${label}.scope must be shared or capability`)
+    const capabilityId = typeof source.capabilityId === 'string' && source.capabilityId.trim() !== '' ? source.capabilityId.trim() : undefined
+    if (scope === 'capability' && capabilityId === undefined) throw new Error(`${label}.capabilityId is required for capability scope`)
+    return {
+      id,
+      name: text(source.name, `${label}.name`),
+      description: text(source.description, `${label}.description`),
+      providerId: text(source.providerId, `${label}.providerId`),
+      scope,
+      ...(scope === 'capability' ? { capabilityId: capabilityId as string } : {}),
+      execution: source.execution === 'platform' ? 'platform' : 'local',
+      outcomeIds: stringList(source.outcomeIds, `${label}.outcomeIds`),
+      toolNames: stringList(source.toolNames, `${label}.toolNames`),
+    }
+  }
+
+  private customPack(capability: CapabilityCreateRequest): RegisteredPack {
+    return {
+      root: dirname(this.statePath),
+      manifest: {
+        apiVersion: 'packs.hyperlake.cloud/v1alpha1', kind: 'SuperHarnessPack',
+        metadata: { id: capability.id, version: '0.1.0', category: 'capability', name: capability.name, description: capability.description },
+        requires: { packs: [], capabilities: [], oneOfAdapters: [] }, provides: capability.outcomes.map(outcome => outcome.id),
+        outcomes: capability.outcomes, contributesTo: [], resourceSlots: [], assets: [],
+      },
+    }
+  }
+
+  private allPacks(): RegisteredPack[] {
+    return [...this.packs.values(), ...Object.values(this.state.customCapabilities).map(capability => this.customPack(capability))]
   }
 
   private persist(): void {
@@ -357,7 +460,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
 
   /** Stable summaries for all registered packs. */
   list(): Array<{ id: string; version: string; category: PackCategory; name: string; description: string }> {
-    return [...this.packs.values()]
+    return this.allPacks()
       .map(({ manifest }) => ({
         id: manifest.metadata.id,
         version: manifest.metadata.version,
@@ -370,7 +473,8 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
 
   /** Return one registered pack or fail with an actionable error. */
   get(id: string): RegisteredPack {
-    const pack = this.packs.get(id)
+    const custom = this.state.customCapabilities[id]
+    const pack = this.packs.get(id) ?? (custom === undefined ? undefined : this.customPack(custom))
     if (!pack) throw new Error(`SuperHarness pack ${JSON.stringify(id)} is not installed`)
     return pack
   }
@@ -379,7 +483,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
   validate(id: string, bindings: PackResourceBinding[] = []): PackValidationResult {
     const pack = this.get(id)
     const issues: string[] = []
-    const installed = [...this.packs.values()].filter(item => this.enabled(item.manifest.metadata.id)).map(item => item.manifest)
+    const installed = this.allPacks().filter(item => this.enabled(item.manifest.metadata.id)).map(item => item.manifest)
     const installedIds = new Set(installed.map(item => item.metadata.id))
     const installedAdapters = installed
       .filter(item => item.metadata.category === 'adapter')
@@ -400,7 +504,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       if (!installedIds.has(requiredPack)) issues.push(`required pack ${JSON.stringify(requiredPack)} is not installed`)
     }
     for (const target of pack.manifest.contributesTo ?? []) {
-      if (!this.packs.has(target)) issues.push(`contribution target ${JSON.stringify(target)} is not installed`)
+      if (!this.packs.has(target) && this.state.customCapabilities[target] === undefined) issues.push(`contribution target ${JSON.stringify(target)} is not installed`)
       if (target === id) issues.push('a pack cannot contribute to itself')
     }
     for (const capability of pack.manifest.requires?.capabilities ?? []) {
@@ -422,18 +526,65 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
         issues.push(`resource slot ${JSON.stringify(slot.id)} does not accept type ${JSON.stringify(binding.resourceType)}`)
       }
     }
+    const availableTools = new Set(this.availableTools().map(tool => tool.name))
+    for (const attachment of this.effectiveAttachments(id)) {
+      if (attachment.providerId !== 'custom') {
+        const provider = installed.find(item => item.metadata.id === attachment.providerId && item.metadata.category === 'adapter')
+        if (provider === undefined) issues.push(`provider ${JSON.stringify(attachment.providerId)} is not an enabled adapter`)
+      }
+      for (const outcomeId of attachment.outcomeIds) {
+        if (!(pack.manifest.outcomes ?? []).some(outcome => outcome.id === outcomeId)) {
+          issues.push(`attachment ${JSON.stringify(attachment.id)} names unknown outcome ${JSON.stringify(outcomeId)}`)
+        }
+      }
+      for (const toolName of attachment.toolNames) {
+        if (!availableTools.has(toolName)) {
+          issues.push(`attachment ${JSON.stringify(attachment.id)} references unavailable tool ${JSON.stringify(toolName)}`)
+        }
+      }
+    }
     return { packId: id, valid: issues.length === 0, installedAdapters, bindings, issues }
+  }
+
+  private availableTools(): Array<{ name: string; description: string }> {
+    return this.ctx.tools.schemas()
+      .filter(tool => tool.name !== 'run_code')
+      .map(tool => ({ name: tool.name, description: tool.description }))
+      .sort((left, right) => left.name.localeCompare(right.name))
+  }
+
+  private effectiveAttachments(packId: string): CapabilityProviderAttachment[] {
+    return this.state.attachments
+      .filter(attachment => attachment.scope === 'shared' || attachment.capabilityId === packId)
+      .map(attachment => ({ ...attachment, outcomeIds: [...attachment.outcomeIds], toolNames: [...attachment.toolNames] }))
+      .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id))
+  }
+
+  private applyToolRestriction(agent: Agent): void {
+    const selected = agent.session.events.findLast(event => event.type === 'superharness/pack-selected')
+    if (selected?.type !== 'superharness/pack-selected') return
+    const managed = new Set([
+      ...(selected.data.managedToolNames ?? []),
+      ...this.state.attachments.flatMap(attachment => attachment.toolNames),
+    ])
+    const denied = this.availableTools().map(tool => tool.name)
+      .filter(toolName => managed.has(toolName) && !selected.data.toolNames.includes(toolName))
+    if (denied.length > 0) agent.ctx.tools.restrict({ deny: denied })
   }
 
   private entry(id: string): PackCatalogEntry {
     const { manifest } = this.get(id)
     const bindings = this.state.bindings[id] ?? []
     const validation = this.validate(id, bindings)
+    const effectiveAttachments = this.effectiveAttachments(id)
     return {
       id, version: manifest.metadata.version, category: manifest.metadata.category,
       name: manifest.metadata.name, description: manifest.metadata.description,
-      installed: true, enabled: this.enabled(id), ready: this.enabled(id) && validation.valid,
+      installed: true, userCreated: this.state.customCapabilities[id] !== undefined,
+      enabled: this.enabled(id), ready: this.enabled(id) && validation.valid,
       contributesTo: manifest.contributesTo ?? [], provides: manifest.provides ?? [],
+      outcomes: manifest.outcomes ?? [], effectiveAttachments,
+      effectiveTools: [...new Set(effectiveAttachments.flatMap(attachment => attachment.toolNames))].sort(),
       requiresPacks: manifest.requires?.packs ?? [],
       requiresCapabilities: manifest.requires?.capabilities ?? [],
       acceptedAdapters: manifest.requires?.oneOfAdapters ?? [],
@@ -451,7 +602,13 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
   /** Complete lifecycle projection consumed by Web and other trusted clients. */
   @Remote('catalog')
   catalog(): PackCatalogSnapshot {
-    return { entries: this.list().map(item => this.entry(item.id)) }
+    return {
+      entries: this.list().map(item => this.entry(item.id)),
+      availableTools: this.availableTools(),
+      attachments: this.state.attachments.map(attachment => ({
+        ...attachment, outcomeIds: [...attachment.outcomeIds], toolNames: [...attachment.toolNames],
+      })),
+    }
   }
 
   /** Enable or disable one installed, allowlisted pack. */
@@ -479,6 +636,65 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
   }
 
+  /** Create a user-owned capability definition; providers and resources are attached separately. */
+  @Remote('createCapability')
+  createCapability(request: CapabilityCreateRequest): PackOperationResult {
+    const id = request.id.trim()
+    if (!ID_PATTERN.test(id)) return { ok: false, packId: id, message: 'Capability id must be a lowercase logical id.' }
+    if (this.packs.has(id) || this.state.customCapabilities[id] !== undefined) return { ok: false, packId: id, message: 'A capability with this id already exists.' }
+    let outcomes: CapabilityOutcome[]
+    try { outcomes = parseOutcomes(request.outcomes) } catch (error) { return { ok: false, packId: id, message: String(error) } }
+    if (outcomes.length === 0) return { ok: false, packId: id, message: 'Define at least one outcome.' }
+    if (request.name.trim() === '' || request.description.trim() === '') return { ok: false, packId: id, message: 'Name and description are required.' }
+    this.state.customCapabilities[id] = { id, name: request.name.trim(), description: request.description.trim(), outcomes }
+    this.state.enabled[id] = true
+    this.persist()
+    return { ok: true, packId: id, entry: this.entry(id) }
+  }
+
+  /** Delete only a user-created capability and its scoped attachments. */
+  @Remote('deleteCapability')
+  deleteCapability(request: CapabilityDeleteRequest): PackOperationResult {
+    if (this.state.customCapabilities[request.packId] === undefined) return { ok: false, packId: request.packId, message: 'Only user-created capabilities can be deleted.' }
+    this.state.customCapabilities = withoutKey(this.state.customCapabilities, request.packId)
+    this.state.enabled = withoutKey(this.state.enabled, request.packId)
+    this.state.bindings = withoutKey(this.state.bindings, request.packId)
+    this.state.attachments = this.state.attachments.filter(attachment => attachment.capabilityId !== request.packId)
+    this.persist()
+    return { ok: true, packId: request.packId }
+  }
+
+  /** Add or replace one shared or capability-specific provider/tool attachment. */
+  @Remote('upsertAttachment')
+  upsertAttachment(request: CapabilityAttachmentUpsertRequest): PackOperationResult {
+    let attachment: CapabilityProviderAttachment
+    try { attachment = this.parseAttachment(request.attachment, 'attachment') } catch (error) {
+      return { ok: false, packId: request.attachment.capabilityId ?? 'shared', message: String(error) }
+    }
+    if (attachment.toolNames.length === 0) return { ok: false, packId: attachment.capabilityId ?? 'shared', message: 'Select at least one installed tool.' }
+    if (attachment.scope === 'capability') {
+      const capabilityId = attachment.capabilityId
+      if (capabilityId === undefined) return { ok: false, packId: 'shared', message: 'Capability id is required.' }
+      try { this.get(capabilityId) } catch (error) { return { ok: false, packId: capabilityId, message: String(error) } }
+    }
+    const available = new Set(this.availableTools().map(tool => tool.name))
+    const missing = attachment.toolNames.filter(toolName => !available.has(toolName))
+    if (missing.length > 0) return { ok: false, packId: attachment.capabilityId ?? 'shared', message: `Unavailable tools: ${missing.join(', ')}` }
+    this.state.attachments = [...this.state.attachments.filter(item => item.id !== attachment.id), attachment]
+    this.persist()
+    return { ok: true, packId: attachment.capabilityId ?? 'shared' }
+  }
+
+  /** Remove one provider/tool attachment by stable id. */
+  @Remote('removeAttachment')
+  removeAttachment(request: CapabilityAttachmentRemoveRequest): PackOperationResult {
+    const attachment = this.state.attachments.find(item => item.id === request.attachmentId)
+    if (attachment === undefined) return { ok: false, packId: 'shared', message: 'Attachment not found.' }
+    this.state.attachments = this.state.attachments.filter(item => item.id !== request.attachmentId)
+    this.persist()
+    return { ok: true, packId: attachment.capabilityId ?? 'shared' }
+  }
+
   /** Select a ready pack for a blank session and record immutable provenance. */
   @Remote('select')
   select(request: PackSelectRequest): PackSelectionResult {
@@ -491,11 +707,24 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     if (agent.session.events.some(event => event.type === 'turn/start')) {
       return { ok: false, packId: request.packId, sessionId: request.sessionId, message: 'Capabilities can only be selected before the first turn.' }
     }
+    if (agent.session.events.some(event => event.type === 'superharness/pack-selected')) {
+      return { ok: false, packId: request.packId, sessionId: request.sessionId, message: 'A capability is already selected for this session.' }
+    }
+    const attachments = this.effectiveAttachments(request.packId)
+    const toolNames = [...new Set(attachments.flatMap(attachment => attachment.toolNames))].sort()
+    const managedToolNames = [...new Set(this.state.attachments.flatMap(attachment => attachment.toolNames))].sort()
     agent.session.append('superharness/pack-selected', {
       packId: request.packId,
       version: pack.manifest.metadata.version,
       bindings: entry.bindings.map(binding => ({ ...binding })),
+      outcomes: entry.outcomes.map(outcome => ({ ...outcome })),
+      attachments: attachments.map(attachment => ({
+        ...attachment, outcomeIds: [...attachment.outcomeIds], toolNames: [...attachment.toolNames],
+      })),
+      toolNames,
+      managedToolNames,
     })
+    this.applyToolRestriction(agent)
     return { ok: true, packId: request.packId, sessionId: request.sessionId, version: pack.manifest.metadata.version }
   }
 
@@ -504,9 +733,10 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     if (agent?.session === undefined) return ''
     const selected = agent.session.events.findLast(event => event.type === 'superharness/pack-selected')
     if (selected?.type !== 'superharness/pack-selected') return ''
-    const pack = this.packs.get(selected.data.packId)
+    let pack: RegisteredPack | undefined
+    try { pack = this.get(selected.data.packId) } catch { pack = undefined }
     if (pack === undefined || pack.manifest.metadata.version !== selected.data.version) return ''
-    const contributions = [...this.packs.values()]
+    const contributions = this.allPacks()
       .filter(item => this.enabled(item.manifest.metadata.id) && item.manifest.contributesTo?.includes(selected.data.packId))
     const assets = [pack, ...contributions].flatMap(item => item.manifest.assets ?? [])
     const approval = assets.some(asset => asset.access === 'mutate' || asset.approval === 'required')
@@ -514,6 +744,8 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return [
       `Active Hyperlake capability: ${pack.manifest.metadata.name} (${selected.data.packId}@${selected.data.version}).`,
       `Authorized resource bindings: ${JSON.stringify(selected.data.bindings)}.`,
+      `Supported outcomes: ${selected.data.outcomes.map(outcome => `${outcome.name}: ${outcome.description}`).join('; ') || 'none declared'}.`,
+      `Capability tools: ${selected.data.toolNames.join(', ') || 'no managed tools attached'}.`,
       'Use only these bindings. Inspect exported routines, models, evaluations, and references before acting.',
       approval,
     ].filter(Boolean).join(' ')

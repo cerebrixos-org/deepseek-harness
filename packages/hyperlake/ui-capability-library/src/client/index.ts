@@ -4,7 +4,10 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { PackConfigureRequest, PackSelectRequest, PackSetEnabledRequest } from '@cerebrixos/superharness-packs/types'
+import type {
+  CapabilityAttachmentRemoveRequest, CapabilityAttachmentUpsertRequest, CapabilityCreateRequest,
+  CapabilityDeleteRequest, PackConfigureRequest, PackSelectRequest, PackSetEnabledRequest,
+} from '@cerebrixos/superharness-packs/types'
 import { CapabilityHome, CapabilityLibrary, type CapabilityLibraryInjected } from './CapabilityLibrary.tsx'
 import { en, zh, type CapabilityLibraryLocaleKey } from './locales.ts'
 
@@ -34,11 +37,15 @@ export function apply(ctx: ClientContext): void {
     setEnabled: (request: PackSetEnabledRequest) => unwrap(ctx.remote.hyperlakePacks.setEnabled(request)),
     configure: (request: PackConfigureRequest) => unwrap(ctx.remote.hyperlakePacks.configure(request)),
     select: (request: PackSelectRequest) => unwrap(ctx.remote.hyperlakePacks.select(request)),
+    createCapability: (request: CapabilityCreateRequest) => unwrap(ctx.remote.hyperlakePacks.createCapability(request)),
+    deleteCapability: (request: CapabilityDeleteRequest) => unwrap(ctx.remote.hyperlakePacks.deleteCapability(request)),
+    upsertAttachment: (request: CapabilityAttachmentUpsertRequest) => unwrap(ctx.remote.hyperlakePacks.upsertAttachment(request)),
+    removeAttachment: (request: CapabilityAttachmentRemoveRequest) => unwrap(ctx.remote.hyperlakePacks.removeAttachment(request)),
   }
-  ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
-    name: 'settings.plugins.tab',
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
     id: 'capabilities',
-    order: 5,
+    order: -100,
     label: () => t('tab'),
     locale: NS,
     inject: (): CapabilityLibraryInjected => injected,

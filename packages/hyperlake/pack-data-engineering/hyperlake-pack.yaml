@@ -15,6 +15,19 @@ provides:
   - transformation-planning
   - pipeline-investigation
   - data-quality-verification
+outcomes:
+  - id: data-modeling
+    name: Model governed data
+    description: Design bronze, silver, and serving-layer models against authorized customer resources.
+  - id: transformation-planning
+    name: Plan transformations
+    description: Produce deterministic transformation plans using attached SQL, dbt, repository, and workflow tools.
+  - id: pipeline-investigation
+    name: Investigate pipelines
+    description: Trace failed or stale pipelines through metadata, lineage, logs, and orchestrator state.
+  - id: data-quality-verification
+    name: Verify data quality
+    description: Run checks and evaluations that prove expected schemas, freshness, and business constraints.
 resourceSlots:
   - id: data-environment
     types: [hyperlake-query-resource, governed-data-environment]

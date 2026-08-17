@@ -224,3 +224,51 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+@media (max-width: 600px) {
+  .panel {
+    flex-direction: column;
+    width: calc(100vw - 24px);
+    max-width: none;
+    height: calc(100vh - 24px);
+    border-radius: 16px;
+  }
+
+  .nav {
+    width: 100%;
+    padding: 16px 12px 8px;
+    gap: 10px;
+    border-bottom: 1px solid var(--dsw-alias-border-l2);
+  }
+
+  .navList {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .navCell {
+    flex: none;
+    width: auto;
+  }
+
+  .content {
+    min-height: 0;
+  }
+
+  .header {
+    position: absolute;
+    top: 10px;
+    right: 8px;
+    height: auto;
+    padding: 0;
+  }
+
+  .actions {
+    display: none;
+  }
+
+  .options {
+    padding: 16px 16px 20px;
+  }
+}

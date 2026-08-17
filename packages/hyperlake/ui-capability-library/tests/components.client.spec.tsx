@@ -1,26 +1,30 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PackCatalogSnapshot } from '@cerebrixos/superharness-packs/types'
-import { CapabilityHome, CapabilityLibrary, type CapabilityLibraryInjected, type CapabilityLibraryProps } from '../src/client/CapabilityLibrary.tsx'
+import {
+  CapabilityHome, CapabilityLibrary, type CapabilityHomeProps, type CapabilityLibraryInjected, type CapabilityLibraryProps,
+} from '../src/client/CapabilityLibrary.tsx'
 import { en, type CapabilityLibraryLocaleKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 const t = (key: CapabilityLibraryLocaleKey): string => en[key]
 
-const SNAPSHOT: PackCatalogSnapshot = { entries: [
+const SNAPSHOT: PackCatalogSnapshot = { availableTools: [{ name: 'query_data', description: 'Query governed data.' }], attachments: [], entries: [
   {
     id: 'data-engineering', version: '1.0.0', category: 'capability', name: 'Data Engineering',
-    description: 'Governed data engineering.', installed: true, enabled: true, ready: true,
+    description: 'Governed data engineering.', installed: true, userCreated: false, enabled: true, ready: true,
     contributesTo: [], provides: ['data-modeling'], requiresPacks: [], requiresCapabilities: [], acceptedAdapters: [],
+    outcomes: [{ id: 'data-modeling', name: 'Model governed data', description: 'Create an authorized model.' }], effectiveAttachments: [], effectiveTools: [],
     resourceSlots: [{ id: 'data-environment', types: ['governed-data-environment'], required: true, description: 'Authorized data environment.' }],
     bindings: [{ slotId: 'data-environment', resourceType: 'governed-data-environment', resourceId: 'resource-1' }],
     assets: [{ id: 'build-silver', type: 'routine', description: 'Build a silver model.', access: 'mutate', approval: 'required' }], issues: [],
   },
   {
     id: 'life-sciences-research', version: '1.0.0', category: 'solution', name: 'Life Sciences Research',
-    description: 'Clinical research accelerator.', installed: true, enabled: false, ready: false,
+    description: 'Clinical research accelerator.', installed: true, userCreated: false, enabled: false, ready: false,
     contributesTo: ['data-engineering'], provides: ['clinical-analysis'], requiresPacks: ['data-engineering'], requiresCapabilities: [], acceptedAdapters: [],
+    outcomes: [{ id: 'clinical-analysis', name: 'Analyze studies', description: 'Analyze permitted study data.' }], effectiveAttachments: [], effectiveTools: [],
     resourceSlots: [], bindings: [], assets: [], issues: [],
   },
 ] }
@@ -31,6 +35,10 @@ function props(overrides: Partial<CapabilityLibraryInjected> = {}): CapabilityLi
     setEnabled: vi.fn().mockResolvedValue({ ok: true, packId: 'life-sciences-research' }),
     configure: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
     select: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering', sessionId: 'session-1' }),
+    createCapability: vi.fn().mockResolvedValue({ ok: true, packId: 'custom' }),
+    deleteCapability: vi.fn().mockResolvedValue({ ok: true, packId: 'custom' }),
+    upsertAttachment: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
+    removeAttachment: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
     ...overrides,
   }
   return {
@@ -66,7 +74,7 @@ describe('CapabilityLibrary', () => {
   })
 
   it('shows packs compactly on the new-session home', async () => {
-    render(<CapabilityHome {...props()} />)
+    render(<CapabilityHome {...props() as unknown as CapabilityHomeProps} />)
     expect(await screen.findByText('Capability packs')).toBeTruthy()
     expect(document.querySelector('[data-surface="home"]')).toBeTruthy()
   })
@@ -78,5 +86,40 @@ describe('CapabilityLibrary', () => {
     expect(screen.queryByText('private detail')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.retry }))
     expect(await screen.findByText('Data Engineering')).toBeTruthy()
+  })
+
+  it('creates a capability with explicit outcomes', async () => {
+    const createCapability = vi.fn().mockResolvedValue({ ok: true, packId: 'risk-review' })
+    render(<CapabilityLibrary {...props({ createCapability })} />)
+    await screen.findByText('Data Engineering')
+    fireEvent.click(screen.getByRole('button', { name: 'New capability' }))
+    const creator = screen.getByRole('heading', { name: 'New capability' }).closest('section')!
+    fireEvent.change(within(creator).getByLabelText('Name'), { target: { value: 'Risk Review' } })
+    fireEvent.change(within(creator).getByLabelText('Description'), { target: { value: 'Review governed risk decisions.' } })
+    fireEvent.change(within(creator).getByLabelText(/Outcomes/), { target: { value: 'approved-review | Approved review | Produce a verified risk review' } })
+    fireEvent.click(within(creator).getByRole('button', { name: 'Create' }))
+    expect(createCapability).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'risk-review', outcomes: [{ id: 'approved-review', name: 'Approved review', description: 'Produce a verified risk review' }],
+    }))
+  })
+
+  it('attaches installed tools to a capability provider', async () => {
+    const upsertAttachment = vi.fn<CapabilityLibraryInjected['upsertAttachment']>()
+      .mockResolvedValue({ ok: true, packId: 'data-engineering' })
+    render(<CapabilityLibrary {...props({ upsertAttachment })} />)
+    await screen.findByText('Data Engineering')
+    fireEvent.click(screen.getByRole('tab', { name: 'Providers & tools' }))
+    const editor = screen.getByRole('heading', { name: 'Add capability provider' }).parentElement!
+    fireEvent.change(within(editor).getByLabelText('Name'), { target: { value: 'Governed query' } })
+    const tools = within(editor).getByLabelText('Tools')
+    const option = within(tools).getByRole('option', { name: /query_data/ }) as HTMLOptionElement
+    option.selected = true
+    fireEvent.change(tools)
+    fireEvent.click(within(editor).getByRole('button', { name: 'Attach' }))
+    expect(upsertAttachment).toHaveBeenCalledTimes(1)
+    const request = upsertAttachment.mock.calls.at(0)?.[0]
+    expect(request?.attachment).toMatchObject({
+      scope: 'capability', capabilityId: 'data-engineering', name: 'Governed query', toolNames: ['query_data'],
+    })
   })
 })

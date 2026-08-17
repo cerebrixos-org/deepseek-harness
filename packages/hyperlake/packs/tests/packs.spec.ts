@@ -3,10 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
+import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import { CallId } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime from '@deepseek-ai/dsh-tools'
+import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { afterEach, describe, expect, it } from 'vitest'
 import SuperHarnessPackRegistry, { loadPackDirectory } from '@cerebrixos/superharness-packs'
 
@@ -172,5 +174,60 @@ describe('SuperHarness pack registry', () => {
 
     const missing = fixture('assets/missing.sql')
     expect(() => loadPackDirectory(missing)).toThrow()
+  })
+
+  it('composes shared and capability-specific providers into enforced agent tool visibility', async () => {
+    const session = Session.create(SessionId('session-composed'))
+    const agent = { id: SessionId('session-composed') } as Agent
+    const ctx = await harness(id => id === 'session-composed' ? agent : undefined)
+    for (const name of ['core_tool', 'shared_tool', 'model_tool', 'clinical_tool']) {
+      ctx.tools.register(defineTool({
+        name, description: name, parameters: {},
+        output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+        execute: () => Promise.resolve(name),
+      }))
+    }
+    let scope!: Scope
+    await ctx.plugin(Object.assign((inner: Context) => { scope = createScope(inner, agent) }, { inject: ['tools', 'systemPrompt'] }))
+    Object.assign(agent, { session, ctx: scope.ctx })
+
+    expect(ctx.hyperlakePacks.createCapability({
+      id: 'model-data', name: 'Model data', description: 'Build governed models.',
+      outcomes: [{ id: 'modeled-data', name: 'Modeled data', description: 'A verified model.' }],
+    }).ok).toBe(true)
+    expect(ctx.hyperlakePacks.createCapability({
+      id: 'clinical-analysis', name: 'Clinical analysis', description: 'Analyze permitted studies.',
+      outcomes: [{ id: 'study-answer', name: 'Study answer', description: 'A governed answer.' }],
+    }).ok).toBe(true)
+    for (const attachment of [
+      { id: 'shared-context', name: 'Shared context', description: 'Common discovery.', providerId: 'custom', scope: 'shared' as const, execution: 'local' as const, outcomeIds: [], toolNames: ['shared_tool'] },
+      { id: 'model-provider', name: 'Model provider', description: 'Model operations.', providerId: 'custom', scope: 'capability' as const, capabilityId: 'model-data', execution: 'local' as const, outcomeIds: ['modeled-data'], toolNames: ['model_tool'] },
+      { id: 'clinical-provider', name: 'Clinical provider', description: 'Clinical operations.', providerId: 'custom', scope: 'capability' as const, capabilityId: 'clinical-analysis', execution: 'platform' as const, outcomeIds: ['study-answer'], toolNames: ['clinical_tool'] },
+    ]) expect(ctx.hyperlakePacks.upsertAttachment({ attachment }).ok).toBe(true)
+
+    expect(ctx.hyperlakePacks.select({ sessionId: 'session-composed', packId: 'model-data' }).ok).toBe(true)
+    expect(ctx.hyperlakePacks.select({ sessionId: 'session-composed', packId: 'clinical-analysis' })).toMatchObject({
+      ok: false, message: 'A capability is already selected for this session.',
+    })
+    const visible = ctx.tools.schemas(agent).map(tool => tool.name)
+    expect(visible).toContain('core_tool')
+    expect(visible).toContain('shared_tool')
+    expect(visible).toContain('model_tool')
+    expect(visible).not.toContain('clinical_tool')
+    expect(ctx.hyperlakePacks.removeAttachment({ attachmentId: 'clinical-provider' }).ok).toBe(true)
+    const resumedAgent = { ...agent, id: SessionId('session-composed-resumed') } as Agent
+    const denied = await ctx.tools.execute({
+      signal, callId: CallId('resume-denied'), name: 'clinical_tool', arguments: {}, agent: resumedAgent,
+    })
+    expect(denied.isError).toBe(true)
+    expect(JSON.stringify(denied.content)).toContain('not attached to the selected Hyperlake capability')
+    expect(session.events.at(-1)).toMatchObject({
+      type: 'superharness/pack-selected',
+      data: {
+        outcomes: [{ id: 'modeled-data' }],
+        toolNames: ['model_tool', 'shared_tool'],
+        managedToolNames: ['clinical_tool', 'model_tool', 'shared_tool'],
+      },
+    })
   })
 })

@@ -8,6 +8,29 @@ export interface PackResourceBinding {
   resourceId: string
 }
 
+export interface CapabilityOutcome {
+  id: string
+  name: string
+  description: string
+}
+
+export interface CapabilityToolView {
+  name: string
+  description: string
+}
+
+export interface CapabilityProviderAttachment {
+  id: string
+  name: string
+  description: string
+  providerId: string
+  scope: 'shared' | 'capability'
+  capabilityId?: string
+  execution: 'local' | 'platform'
+  outcomeIds: string[]
+  toolNames: string[]
+}
+
 export interface PackAssetView {
   id: string
   type: string
@@ -32,10 +55,14 @@ export interface PackCatalogEntry {
   name: string
   description: string
   installed: boolean
+  userCreated: boolean
   enabled: boolean
   ready: boolean
   contributesTo: string[]
   provides: string[]
+  outcomes: CapabilityOutcome[]
+  effectiveAttachments: CapabilityProviderAttachment[]
+  effectiveTools: string[]
   requiresPacks: string[]
   requiresCapabilities: string[]
   acceptedAdapters: string[]
@@ -45,10 +72,23 @@ export interface PackCatalogEntry {
   issues: string[]
 }
 
-export interface PackCatalogSnapshot { entries: PackCatalogEntry[] }
+export interface PackCatalogSnapshot {
+  entries: PackCatalogEntry[]
+  availableTools: CapabilityToolView[]
+  attachments: CapabilityProviderAttachment[]
+}
 export interface PackSetEnabledRequest { packId: string; enabled: boolean }
 export interface PackConfigureRequest { packId: string; bindings: PackResourceBinding[] }
 export interface PackSelectRequest { sessionId: string; packId: string }
+export interface CapabilityCreateRequest {
+  id: string
+  name: string
+  description: string
+  outcomes: CapabilityOutcome[]
+}
+export interface CapabilityDeleteRequest { packId: string }
+export interface CapabilityAttachmentUpsertRequest { attachment: CapabilityProviderAttachment }
+export interface CapabilityAttachmentRemoveRequest { attachmentId: string }
 
 export interface PackOperationResult {
   ok: boolean
