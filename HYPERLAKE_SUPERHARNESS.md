@@ -25,6 +25,19 @@ An activated goal carries the pack's mandatory success criteria, observation con
 
 Pack validation does not grant access. It proves composition readiness; the connected target still enforces identity, policy, and resource authorization.
 
+## User Setup
+
+1. Use a password manager or trusted environment injector to set `HYPERLAKE_API_KEY` or `HYPERLAKE_ACCESS_TOKEN`.
+2. Run `npx @cerebrixos/hyperlake@0.2.1 auth login --host <tenant-url> --email <email> --api-key "$HYPERLAKE_API_KEY"`, substituting `--access-token "$HYPERLAKE_ACCESS_TOKEN"` when applicable.
+3. Verify the session with `npx @cerebrixos/hyperlake@0.2.1 auth whoami`.
+4. Start the bundled runtime with `npx @cerebrixos/hyperlake-superharness`.
+5. Configure a model provider in the local Web UI; this credential is independent from Hyperlake authentication.
+6. Open **Settings → Capabilities**, enable a capability, bind its required opaque resource references, and attach any additional installed providers.
+7. Select the capability before the first conversation turn.
+8. Use attached tools directly for interactive work, or request an exported goal/routine for bounded autonomous work.
+
+The current Hyperlake CLI stores persistent control-plane credentials in its per-user configuration file with `0600` permissions. Literal secrets must not be placed in shell history, conversations, manifests, routine inputs, or MCP arguments. The planned stronger path is browser OAuth with PKCE and OS-keychain-backed refresh-token storage; until then, use a secret manager to inject the environment variable consumed by `auth login`.
+
 ## Profiles and Packs
 
 The shipped `hyperlake` profile composes the base web Harness, the SuperHarness registry, the Data Engineering capability, its Capability Library UI, and the Hyperlake adapter. The Settings library reports first-party outcomes and resource availability without exposing credentials or duplicating Rails state. Set `SUPERHARNESS_HYPERLAKE_DISABLED=1` to inspect or boot the profile without starting the CLI MCP process.

@@ -62,11 +62,19 @@ const collect = (value: string, previous: string[] = []): string[] => [...previo
 
 /** The launcher's own help text; each app prints its own. */
 const HELP_EXAMPLES = `
+Hyperlake authentication (one time per OS user):
+  npx @cerebrixos/hyperlake@0.2.1 auth login --host <url> --email <email> --api-key "$HYPERLAKE_API_KEY"
+  npx @cerebrixos/hyperlake@0.2.1 auth whoami
+
 Examples:
   hyperlake-superharness web                          boot the local Web UI
   hyperlake-superharness --profile headless "task"   answer one task and exit
   hyperlake-superharness --profile tui                start the terminal UI
   hyperlake-superharness --profile web --help         show Web profile options
+
+The bundled Hyperlake MCP process reuses that user's authentication. Inject
+HYPERLAKE_API_KEY or HYPERLAKE_ACCESS_TOKEN with a secret manager; never put
+secret values in conversations, capability manifests, routine inputs, or MCP arguments.
 `
 
 /**
