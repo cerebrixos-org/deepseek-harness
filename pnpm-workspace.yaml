@@ -69,7 +69,7 @@ minimumReleaseAgeExclude:
   - node-addon-require-builtin-win32-ia32-msvc@0.1.4
   - node-addon-require-builtin-win32-x64-msvc@0.1.4
   - node-addon-require-builtin@0.1.4
-  - '@cerebrixos/hyperlake@0.2.0'
+  - '@cerebrixos/hyperlake@0.2.0 || 0.2.1'
 
 patchedDependencies:
   node-pty@1.1.0: patches/node-pty@1.1.0.patch

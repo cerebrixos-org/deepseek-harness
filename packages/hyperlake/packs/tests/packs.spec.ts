@@ -24,6 +24,37 @@ function fixture(assetPath = 'assets/model.sql'): string {
   roots.push(root)
   mkdirSync(join(root, 'assets'))
   writeFileSync(join(root, 'assets/model.sql'), 'SELECT 1\n')
+  writeFileSync(join(root, 'assets/goal.yaml'), `
+apiVersion: goals.hyperlake.cloud/v1alpha1
+kind: Goal
+metadata:
+  id: freshness
+spec:
+  successCriteria:
+    - metric: freshness_minutes
+      operator: less_than
+      value: 30
+  observe:
+    capability: data.query
+    resourceSlot: analytical-engine
+  allowedRoutines: [build-model]
+`)
+  writeFileSync(join(root, 'assets/routine.yaml'), `
+apiVersion: routines.hyperlake.cloud/v1alpha1
+kind: Routine
+metadata:
+  id: build-model
+spec:
+  steps:
+    - action: catalog.inspect
+      resourceSlot: analytical-engine
+    - action: model.apply
+      resourceSlot: analytical-engine
+      approval: required
+    - verify: data-quality.verify
+  limits:
+    maxAttempts: 2
+`)
   writeFileSync(join(root, 'hyperlake-pack.yaml'), `
 apiVersion: packs.hyperlake.cloud/v1alpha1
 kind: SuperHarnessPack
@@ -47,6 +78,16 @@ assets:
     dialect: ansi-sql
     adapters: [hyperlake-trino, databricks]
     portable: true
+  - id: freshness
+    type: goal
+    path: assets/goal.yaml
+    description: Keep governed data fresh.
+  - id: build-model
+    type: routine
+    path: assets/routine.yaml
+    description: Build and verify a governed model.
+    access: mutate
+    approval: required
 `)
   return root
 }
@@ -136,6 +177,81 @@ describe('SuperHarness pack registry', () => {
       valid: false,
       issues: ['resource slot "analytical-engine" does not accept type "sharepoint-site"'],
     })
+  })
+
+  it('starts exported goals and routines through the native goal tool with bounded authority', async () => {
+    const session = Session.create(SessionId('session-autonomy'))
+    const agent = { session } as Agent
+    const ctx = await harness(id => id === 'session-autonomy' ? agent : undefined)
+    const calls: Array<{ arguments: unknown; parent: unknown; agent: Agent | undefined }> = []
+    ctx.tools.register(defineTool({
+      name: 'create_goal', description: 'Native goal fixture.',
+      parameters: {
+        objective: { type: 'string', required: true },
+        max_goal_rounds: { type: 'number', required: true },
+      },
+      output: { schema: { type: 'object', additionalProperties: true }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
+      execute: (args, exec) => {
+        calls.push({ arguments: args, parent: exec.parent, agent: exec.agent })
+        return Promise.resolve({ goalId: 'goal-1' })
+      },
+    }))
+    ctx.hyperlakePacks.register(loadPackDirectory(fixture()), { defaultEnabled: true })
+    expect(ctx.hyperlakePacks.configure({ packId: 'data-engineering', bindings: [{
+      slotId: 'analytical-engine', resourceType: 'hyperlake-cluster', resourceId: 'cluster-123',
+    }] }).ok).toBe(true)
+    expect(ctx.hyperlakePacks.select({ sessionId: 'session-autonomy', packId: 'data-engineering' }).ok).toBe(true)
+
+    const goal = await ctx.tools.execute({
+      signal, callId: CallId('activate-goal'), name: 'superharness_goal_activate', agent,
+      arguments: { pack_id: 'data-engineering', asset_id: 'freshness', max_goal_rounds: 7 },
+    })
+    expect(goal.isError).toBe(false)
+    expect(calls[0]?.parent).toBeTypeOf('symbol')
+    expect(calls[0]?.agent).toBe(agent)
+    expect(calls[0]?.arguments).toMatchObject({ max_goal_rounds: 7 })
+    expect(JSON.stringify(calls[0]?.arguments)).toContain('freshness_minutes')
+    expect(JSON.stringify(calls[0]?.arguments)).toContain('cluster-123')
+
+    const routine = await ctx.tools.execute({
+      signal, callId: CallId('run-routine'), name: 'superharness_routine_run', agent,
+      arguments: { pack_id: 'data-engineering', asset_id: 'build-model', inputs: { target: 'silver.orders' } },
+    })
+    expect(routine.isError).toBe(false)
+    expect(JSON.stringify(calls[1]?.arguments)).toContain('catalog.inspect')
+    expect(JSON.stringify(calls[1]?.arguments)).toContain('approval through the governed tool')
+    expect(JSON.stringify(calls[1]?.arguments)).toContain('silver.orders')
+  })
+
+  it('rejects pack autonomy without session selection and above the deployment round ceiling', async () => {
+    const session = Session.create(SessionId('session-autonomy-denied'))
+    const agent = { session } as Agent
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.provide('agents', { get: (id: string) => id === 'session-autonomy-denied' ? agent : undefined } as never)
+    const stateRoot = mkdtempSync(join(tmpdir(), 'superharness-state-'))
+    roots.push(stateRoot)
+    await ctx.plugin(SuperHarnessPackRegistry, { statePath: join(stateRoot, 'packs.json'), maxAutonomyRounds: 4 })
+    ctx.hyperlakePacks.register(loadPackDirectory(fixture()), { defaultEnabled: true })
+    ctx.hyperlakePacks.configure({ packId: 'data-engineering', bindings: [{
+      slotId: 'analytical-engine', resourceType: 'hyperlake-cluster', resourceId: 'cluster-123',
+    }] })
+
+    const unselected = await ctx.tools.execute({
+      signal, callId: CallId('activate-unselected'), name: 'superharness_goal_activate', agent,
+      arguments: { pack_id: 'data-engineering', asset_id: 'freshness' },
+    })
+    expect(unselected.isError).toBe(true)
+    expect(JSON.stringify(unselected.content)).toContain('select pack')
+
+    expect(ctx.hyperlakePacks.select({ sessionId: 'session-autonomy-denied', packId: 'data-engineering' }).ok).toBe(true)
+    const excessive = await ctx.tools.execute({
+      signal, callId: CallId('activate-excessive'), name: 'superharness_goal_activate', agent,
+      arguments: { pack_id: 'data-engineering', asset_id: 'freshness', max_goal_rounds: 5 },
+    })
+    expect(excessive.isError).toBe(true)
+    expect(JSON.stringify(excessive.content)).toContain('between 1 and 4')
   })
 
   it('composes the real solution, capability, and Hyperlake adapter manifests', async () => {

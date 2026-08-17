@@ -292,6 +292,19 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Discovers preset directories over trusted and user-authored roots and mounts one preset cordis.yml under an agent scope during creation, rejecting a row that never activates or that publishes into the root service realm.',
   },
   {
+    key: 'hyperlakePacks',
+    pkg: 'superharness-packs',
+    title: 'Capability pack registry',
+    mode: 'core',
+    consumers: [
+      'superharness-adapter-databricks',
+      'superharness-adapter-hyperlake',
+      'superharness-pack-data-engineering',
+      'superharness-solution-life-sciences',
+    ],
+    note: 'Owns pack validation, resource bindings, provider attachments, session selection, tool restriction, and bounded delegation into the native goal driver.',
+  },
+  {
     key: 'commands',
     pkg: 'commands',
     title: 'Human command registry',

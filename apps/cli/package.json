@@ -43,7 +43,7 @@
     "@cerebrixos/superharness-base": "workspace:^",
     "@cerebrixos/superharness-adapter-hyperlake": "workspace:^",
     "@cerebrixos/superharness-packs": "workspace:^",
-    "@cerebrixos/hyperlake": "0.2.0",
+    "@cerebrixos/hyperlake": "0.2.1",
     "@deepseek-ai/dsh-mcp-client": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
     "@deepseek-ai/dsh-persona": "workspace:^",

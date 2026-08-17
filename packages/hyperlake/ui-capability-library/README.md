@@ -12,7 +12,7 @@ Shared providers are cross-cutting and become available in every selected capabi
 
 #### What the model sees
 
-Nothing directly. This package renders and mutates local deployment configuration through typed Remotes. The Host pack registry owns model-visible prompts, tool filtering, and execution checks after a capability is selected.
+Nothing directly. This package renders and mutates local deployment configuration through typed Remotes such as `ctx.hyperlakePacks.catalog()`. The Host pack registry owns model-visible prompts, tool filtering, and execution checks after a capability is selected.
 
 #### Token effect
 

@@ -11,6 +11,26 @@
 
 `Requires:` 行列出插件通过 `inject` 注入的服务键：其 `cordis.yml` 树还必须加载这些服务的提供者。范围限定为 harness 层级（`packages/`）；配置树还可能加载的 vendored cordis 插件（`hmr`、控制台日志记录器等）固定为上游源代码（参见 [vendoring policy](../vendor/README.md)），未收录于此目录。
 
+<a id="cerebrixossuperharness-packs"></a>
+
+## `@cerebrixos/superharness-packs`
+
+需要：`tools` · `agents` · `systemPrompt`
+
+```ts config-catalog
+/** Plugin configuration. */
+export interface Config {
+  /** Maximum bytes returned by one asset read. */
+  maxAssetBytes?: number
+  /** Persistent non-secret lifecycle state. */
+  statePath?: string
+  /** Hard deployment ceiling for pack-started autonomous goal rounds. */
+  maxAutonomyRounds?: number
+}
+```
+
+来源：[`packages/hyperlake/packs/src/index.ts:109`](../packages/hyperlake/packs/src/index.ts)
+
 <a id="deepseek-aidsh-acp"></a>
 
 ## `@deepseek-ai/dsh-acp`
@@ -3027,6 +3047,11 @@ export interface Config {
 
 这些插件通过 `cordis.yml` 中不含 `config:` 块的条目加载；它们未声明任何配置接口。
 
+- `@cerebrixos/superharness-adapter-databricks` — 需要 `hyperlakePacks`（[`packages/hyperlake/adapter-databricks/src/index.ts`](../packages/hyperlake/adapter-databricks/src/index.ts)）
+- `@cerebrixos/superharness-adapter-hyperlake` — 需要 `hyperlakePacks`（[`packages/hyperlake/adapter-hyperlake/src/index.ts`](../packages/hyperlake/adapter-hyperlake/src/index.ts)）
+- `@cerebrixos/superharness-pack-data-engineering` — 需要 `hyperlakePacks`（[`packages/hyperlake/pack-data-engineering/src/index.ts`](../packages/hyperlake/pack-data-engineering/src/index.ts)）
+- `@cerebrixos/superharness-solution-life-sciences` — 需要 `hyperlakePacks`（[`packages/hyperlake/solution-life-sciences/src/index.ts`](../packages/hyperlake/solution-life-sciences/src/index.ts)）
+- `@cerebrixos/superharness-ui-capability-library`（[`packages/hyperlake/ui-capability-library/src/index.ts`](../packages/hyperlake/ui-capability-library/src/index.ts)）
 - `@deepseek-ai/dsh-agent`（[`packages/core/agent/src/index.ts`](../packages/core/agent/src/index.ts)）
 - `@deepseek-ai/dsh-api-gateway` — 需要 `typert`（[`packages/api/gateway/src/index.ts`](../packages/api/gateway/src/index.ts)）
 - `@deepseek-ai/dsh-api-remotes`（[`packages/api/remotes/src/index.ts`](../packages/api/remotes/src/index.ts)）
@@ -3116,6 +3141,7 @@ export interface Config {
 
 由其他包作为库导入；`cordis.yml` 无法加载它们。
 
+- `@cerebrixos/superharness-base`（[`packages/bundle/hyperlake/src/index.ts`](../packages/bundle/hyperlake/src/index.ts)）
 - `@deepseek-ai/dsh-acp-snapshot`（[`packages/test-support/acp-snapshot/src/index.ts`](../packages/test-support/acp-snapshot/src/index.ts)）
 - `@deepseek-ai/dsh-agent-loop-testkit`（[`packages/test-support/agent-loop-testkit/src/index.ts`](../packages/test-support/agent-loop-testkit/src/index.ts)）
 - `@deepseek-ai/dsh-anonymous-user-id`（[`packages/identity/anonymous-user-id/src/index.ts`](../packages/identity/anonymous-user-id/src/index.ts)）

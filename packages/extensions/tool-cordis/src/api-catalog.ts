@@ -710,6 +710,85 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'hyperlakePacks',
+    summary: 'Registry for installed industry packs and their explicitly exported assets.',
+    description: 'Registry for installed industry packs and their explicitly exported assets.',
+    methods: [
+      {
+        signature: 'register(pack: RegisteredPack, options: PackRegistrationOptions = {}): () => void',
+        description: 'Register one validated pack for the calling plugin\'s effect lifetime.',
+        parameters: [{ name: 'pack', description: 'Validated pack to register.' }, { name: 'options', description: 'Registration defaults owned by the pack plugin.' }],
+        returns: 'A disposer that unregisters the pack.',
+      },
+      {
+        signature: 'list(): Array<{ id: string; version: string; category: PackCategory; name: string; description: string }>',
+        description: 'Stable summaries for all registered packs.',
+        parameters: [],
+        returns: 'Pack summaries sorted by logical id.',
+      },
+      {
+        signature: 'get(id: string): RegisteredPack',
+        description: 'Return one registered pack or fail with an actionable error.',
+        parameters: [{ name: 'id', description: 'Stable pack id.' }],
+        returns: 'The registered built-in or user-defined pack.',
+      },
+      {
+        signature: 'validate(id: string, bindings: PackResourceBinding[] = []): PackValidationResult',
+        description: 'Check dependencies, adapter capabilities, and required resource bindings.',
+        parameters: [{ name: 'id', description: 'Stable pack id.' }, { name: 'bindings', description: 'Candidate non-secret resource bindings.' }],
+        returns: 'Composition-readiness details and actionable issues.',
+      },
+      {
+        signature: '@Remote(\'catalog\') catalog(): PackCatalogSnapshot',
+        description: 'Complete lifecycle projection consumed by Web and other trusted clients.',
+        parameters: [],
+        returns: 'Current pack, tool, binding, and attachment state.',
+      },
+      {
+        signature: '@Remote(\'setEnabled\') setEnabled(request: PackSetEnabledRequest): PackOperationResult',
+        description: 'Enable or disable one installed, allowlisted pack.',
+        parameters: [{ name: 'request', description: 'Pack id and desired lifecycle state.' }],
+        returns: 'The updated pack projection.',
+      },
+      {
+        signature: '@Remote(\'configure\') configure(request: PackConfigureRequest): PackOperationResult',
+        description: 'Replace non-secret resource references for one pack.',
+        parameters: [{ name: 'request', description: 'Pack id and complete resource-binding set.' }],
+        returns: 'The updated pack projection or validation failure.',
+      },
+      {
+        signature: '@Remote(\'createCapability\') createCapability(request: CapabilityCreateRequest): PackOperationResult',
+        description: 'Create a user-owned capability definition; providers and resources are attached separately.',
+        parameters: [{ name: 'request', description: 'Capability identity, description, and outcomes.' }],
+        returns: 'The created capability projection or validation failure.',
+      },
+      {
+        signature: '@Remote(\'deleteCapability\') deleteCapability(request: CapabilityDeleteRequest): PackOperationResult',
+        description: 'Delete only a user-created capability and its scoped attachments.',
+        parameters: [{ name: 'request', description: 'User-created capability id.' }],
+        returns: 'The deletion result.',
+      },
+      {
+        signature: '@Remote(\'upsertAttachment\') upsertAttachment(request: CapabilityAttachmentUpsertRequest): PackOperationResult',
+        description: 'Add or replace one shared or capability-specific provider/tool attachment.',
+        parameters: [{ name: 'request', description: 'Complete attachment definition.' }],
+        returns: 'The attachment update result.',
+      },
+      {
+        signature: '@Remote(\'removeAttachment\') removeAttachment(request: CapabilityAttachmentRemoveRequest): PackOperationResult',
+        description: 'Remove one provider/tool attachment by stable id.',
+        parameters: [{ name: 'request', description: 'Stable attachment id.' }],
+        returns: 'The attachment removal result.',
+      },
+      {
+        signature: '@Remote(\'select\') select(request: PackSelectRequest): PackSelectionResult',
+        description: 'Select a ready pack for a blank session and record immutable provenance.',
+        parameters: [{ name: 'request', description: 'Target session and pack ids.' }],
+        returns: 'Selection provenance or an actionable rejection.',
+      },
+    ],
+  },
+  {
     key: 'invariants',
     summary: 'Package-owned invariant registry with global and regex-based selection.',
     description: 'Package-owned invariant registry with global and regex-based selection.',
@@ -2738,6 +2817,34 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CancelOptions {\n    keepInbox?: boolean | undefined;\n}',
   },
   {
+    name: 'CapabilityAttachmentRemoveRequest',
+    declaration: 'export interface CapabilityAttachmentRemoveRequest {\n    attachmentId: string;\n}',
+  },
+  {
+    name: 'CapabilityAttachmentUpsertRequest',
+    declaration: 'export interface CapabilityAttachmentUpsertRequest {\n    attachment: CapabilityProviderAttachment;\n}',
+  },
+  {
+    name: 'CapabilityCreateRequest',
+    declaration: 'export interface CapabilityCreateRequest {\n    id: string;\n    name: string;\n    description: string;\n    outcomes: CapabilityOutcome[];\n}',
+  },
+  {
+    name: 'CapabilityDeleteRequest',
+    declaration: 'export interface CapabilityDeleteRequest {\n    packId: string;\n}',
+  },
+  {
+    name: 'CapabilityOutcome',
+    declaration: 'export interface CapabilityOutcome {\n    id: string;\n    name: string;\n    description: string;\n}',
+  },
+  {
+    name: 'CapabilityProviderAttachment',
+    declaration: 'export interface CapabilityProviderAttachment {\n    id: string;\n    name: string;\n    description: string;\n    providerId: string;\n    scope: \'shared\' | \'capability\';\n    capabilityId?: string;\n    execution: \'local\' | \'platform\';\n    outcomeIds: string[];\n    toolNames: string[];\n}',
+  },
+  {
+    name: 'CapabilityToolView',
+    declaration: 'export interface CapabilityToolView {\n    name: string;\n    description: string;\n}',
+  },
+  {
     name: 'ClientResponse',
     declaration: 'export interface ClientResponse {\n    type: \'client-response\';\n    rpcId: RpcId;\n    result: RpcResult<unknown>;\n}',
   },
@@ -3474,6 +3581,58 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface OneShotSubagentDescriptorData extends SubagentDescriptorBase {\n    readonly mode: \'one-shot\';\n    readonly label?: string;\n}',
   },
   {
+    name: 'PackAsset',
+    declaration: 'export interface PackAsset {\n    id: string;\n    type: \'ddl\' | \'sql\' | \'dbt\' | \'notebook\' | \'semantic-model\' | \'dashboard\' | \'data-contract\' | \'routine\' | \'goal\' | \'evaluation\' | \'reference\';\n    path: string;\n    description: string;\n    dialect?: string;\n    adapters?: string[];\n    portable?: boolean;\n    access?: \'read\' | \'mutate\';\n    approval?: \'none\' | \'required\';\n}',
+  },
+  {
+    name: 'PackAssetView',
+    declaration: 'export interface PackAssetView {\n    id: string;\n    type: string;\n    description: string;\n    dialect?: string;\n    portable?: boolean;\n    access: \'read\' | \'mutate\';\n    approval: \'none\' | \'required\';\n}',
+  },
+  {
+    name: 'PackCatalogEntry',
+    declaration: 'export interface PackCatalogEntry {\n    id: string;\n    version: string;\n    category: PackCategory;\n    name: string;\n    description: string;\n    installed: boolean;\n    userCreated: boolean;\n    enabled: boolean;\n    ready: boolean;\n    contributesTo: string[];\n    provides: string[];\n    outcomes: CapabilityOutcome[];\n    effectiveAttachments: CapabilityProviderAttachment[];\n    effectiveTools: string[];\n    requiresPacks: string[];\n    requiresCapabilities: string[];\n    acceptedAdapters: string[];\n    resourceSlots: PackResourceSlotView[];\n    bindings: PackResourceBinding[];\n    assets: PackAssetView[];\n    issues: string[];\n}',
+  },
+  {
+    name: 'PackCatalogSnapshot',
+    declaration: 'export interface PackCatalogSnapshot {\n    entries: PackCatalogEntry[];\n    availableTools: CapabilityToolView[];\n    attachments: CapabilityProviderAttachment[];\n}',
+  },
+  {
+    name: 'PackConfigureRequest',
+    declaration: 'export interface PackConfigureRequest {\n    packId: string;\n    bindings: PackResourceBinding[];\n}',
+  },
+  {
+    name: 'PackManifest',
+    declaration: 'export interface PackManifest {\n    apiVersion: \'packs.hyperlake.cloud/v1alpha1\';\n    kind: \'SuperHarnessPack\';\n    metadata: {\n        id: string;\n        version: string;\n        category: PackCategory;\n        name: string;\n        description: string;\n    };\n    requires?: {\n        packs?: string[];\n        capabilities?: string[];\n        oneOfAdapters?: string[];\n    };\n    provides?: string[];\n    outcomes?: CapabilityOutcome[];\n    contributesTo?: string[];\n    resourceSlots?: PackResourceSlot[];\n    assets?: PackAsset[];\n}',
+  },
+  {
+    name: 'PackOperationResult',
+    declaration: 'export interface PackOperationResult {\n    ok: boolean;\n    packId: string;\n    message?: string;\n    entry?: PackCatalogEntry;\n}',
+  },
+  {
+    name: 'PackResourceSlot',
+    declaration: 'export interface PackResourceSlot {\n    id: string;\n    types: string[];\n    required: boolean;\n    description: string;\n}',
+  },
+  {
+    name: 'PackResourceSlotView',
+    declaration: 'export interface PackResourceSlotView {\n    id: string;\n    types: string[];\n    required: boolean;\n    description: string;\n}',
+  },
+  {
+    name: 'PackSelectionResult',
+    declaration: 'export interface PackSelectionResult extends PackOperationResult {\n    sessionId: string;\n    version?: string;\n}',
+  },
+  {
+    name: 'PackSelectRequest',
+    declaration: 'export interface PackSelectRequest {\n    sessionId: string;\n    packId: string;\n}',
+  },
+  {
+    name: 'PackSetEnabledRequest',
+    declaration: 'export interface PackSetEnabledRequest {\n    packId: string;\n    enabled: boolean;\n}',
+  },
+  {
+    name: 'PackValidationResult',
+    declaration: 'export interface PackValidationResult {\n    packId: string;\n    valid: boolean;\n    installedAdapters: string[];\n    bindings: PackResourceBinding[];\n    issues: string[];\n}',
+  },
+  {
     name: 'PermissionSelect',
     declaration: 'export interface PermissionSelect {\n    options: PresetOption[];\n    currentValue: string;\n}',
   },
@@ -3576,6 +3735,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'RedactedSecret',
     declaration: 'export interface RedactedSecret {\n    path: string[];\n    set: boolean;\n}',
+  },
+  {
+    name: 'RegisteredPack',
+    declaration: 'export interface RegisteredPack {\n    readonly root: string;\n    readonly manifest: Readonly<PackManifest>;\n}',
   },
   {
     name: 'RequestContext',

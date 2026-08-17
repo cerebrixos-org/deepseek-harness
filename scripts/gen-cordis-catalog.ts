@@ -70,6 +70,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   e2b: 'subprocess.md',
   fs: 'filesystem.md',
   goals: 'goal.md',
+  hyperlakePacks: 'extensions.md',
   webServer: 'web-server.md',
   invariants: 'invariants.md',
   llm: 'llm-streaming.md',
@@ -491,6 +492,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
 /** TypeScript lib and pinned framework types with no repository-owned data page. */
 export const FOUNDATION_TYPE_NAMES: ReadonlySet<string> = new Set([
   'AbortSignal',
+  'Array',
   'AsyncIterable',
   'Context',
   'Error',
@@ -506,6 +508,21 @@ export const FOUNDATION_TYPE_NAMES: ReadonlySet<string> = new Set([
 /** Project types deliberately documented outside the subsystems catalog. */
 export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   z: 'schemastery schema constructor is owned by vendor/schemastery (vendored upstream)',
+  CapabilityAttachmentRemoveRequest: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  CapabilityAttachmentUpsertRequest: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  CapabilityCreateRequest: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  CapabilityDeleteRequest: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  PackCatalogSnapshot: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  PackCategory: 'capability manifest contract is owned by packages/hyperlake/packs/README.md',
+  PackConfigureRequest: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  PackOperationResult: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  PackRegistrationOptions: 'pack registration contract is owned by packages/hyperlake/packs/README.md',
+  PackResourceBinding: 'capability resource-binding contract is owned by packages/hyperlake/packs/README.md',
+  PackSelectionResult: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  PackSelectRequest: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  PackSetEnabledRequest: 'capability lifecycle contract is owned by packages/hyperlake/packs/README.md',
+  PackValidationResult: 'pack validation contract is owned by packages/hyperlake/packs/README.md',
+  RegisteredPack: 'pack registration contract is owned by packages/hyperlake/packs/README.md',
   BeginCommandRequest: 'event-local request contract is owned by packages/client/ui-input-trigger/src/types.ts',
   InsertReferenceRequest: 'event-local request contract is owned by packages/client/ui-input-trigger/src/types.ts',
   ConsumeTokenRequest: 'event-local request contract is owned by packages/client/ui-input-trigger/src/types.ts',

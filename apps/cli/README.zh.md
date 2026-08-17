@@ -20,6 +20,8 @@ npx @cerebrixos/hyperlake-superharness
 SUPERHARNESS_HYPERLAKE_DISABLED=1 npx @cerebrixos/hyperlake-superharness --dump-default-config
 ```
 
+## 配置
+
 通过显式配置可使用底层 Harness 配置：
 
 ```sh
@@ -31,3 +33,7 @@ npx @cerebrixos/hyperlake-superharness --profile headless "inspect platform heal
 内置的数据工程能力包提供确定性流程、技能、评估和资产。能力包声明所需能力和类型化资源槽位，适配器则暴露现有的受治理工具接口。内置生命科学软件包展示了领域解决方案如何组合横向能力，同时不会直接获得凭据或代码仓库访问权限。
 
 能力包验证只证明组合已准备就绪；授权、策略检查和审批仍由连接的 Hyperlake 资源最终执行。
+
+选择并绑定能力后，可以直接使用其附加工具完成交互式工作。对于有边界的自主工作，可以要求 Harness 激活已导出的目标或运行已导出的流程。`superharness_goal_activate` 会把成功标准和观测契约委托给同一会话中的原生目标驱动器；`superharness_routine_run` 会委托有序步骤和限制。两者都受部署策略的轮次上限约束，只接受非秘密输入，并保留各个受治理工具对变更操作的审批要求。
+
+目标和流程是能力资产，而不是后台权限。启动任一工具之前，必须为当前会话选择该能力，并绑定所有必需的资源槽位。

@@ -20,6 +20,8 @@ Set `SUPERHARNESS_HYPERLAKE_DISABLED=1` to inspect the profile without starting 
 SUPERHARNESS_HYPERLAKE_DISABLED=1 npx @cerebrixos/hyperlake-superharness --dump-default-config
 ```
 
+## Profiles
+
 Use an explicit profile to access the underlying Harness profiles:
 
 ```sh
@@ -31,3 +33,7 @@ npx @cerebrixos/hyperlake-superharness --profile headless "inspect platform heal
 The included Data Engineering pack provides deterministic routines, skills, evaluations, and assets. Packs declare required capabilities and typed resource slots, while adapters expose existing governed tool surfaces. The included Life Sciences package demonstrates how a domain solution composes the horizontal capability without receiving direct access to credentials or repositories.
 
 Pack validation proves composition readiness; authorization, policy checks, and approvals remain authoritative at the connected Hyperlake resource.
+
+After selecting and binding a capability, use its attached tools directly for interactive work. For bounded autonomous work, ask the Harness to activate an exported goal or run an exported routine. `superharness_goal_activate` delegates success criteria and observations to the native same-session goal driver; `superharness_routine_run` delegates ordered steps and limits. Both are capped by deployment policy, accept only non-secret inputs, and retain each governed tool's approval requirements for mutations.
+
+Goals and routines are capability assets, not background permissions. The capability must be selected for the current session and all required resource slots must be bound before either tool starts.

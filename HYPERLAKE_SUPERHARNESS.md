@@ -18,7 +18,10 @@ All packs use one `SuperHarnessPack` manifest. `category` distinguishes `capabil
 1. The model calls `superharness_pack_list` and `superharness_pack_describe` to select applicable content.
 2. The caller supplies opaque resource ids and their resource types to `superharness_pack_validate`. Required packs, capabilities, adapter compatibility, and slot bindings must pass before use.
 3. The model reads an explicit asset with `superharness_pack_asset_read`. Arbitrary pack filesystem access is unavailable.
-4. The model invokes the adapter's existing MCP tool against the selected customer resource. Adapter authorization and approvals remain authoritative.
+4. For interactive work, the model invokes the adapter's existing MCP tool against the selected customer resource. Adapter authorization and approvals remain authoritative.
+5. For bounded autonomous work, the model calls `superharness_goal_activate` or `superharness_routine_run`. Both delegate to the Harness's native same-session goal driver; they do not create a second agent loop.
+
+An activated goal carries the pack's mandatory success criteria, observation contract, allowed remediation routines, and concrete resource bindings. A routine carries its ordered steps, limits, caller-supplied non-secret inputs, and bindings. The deployment-level `maxAutonomyRounds` setting is a hard ceiling. Pack selection does not bypass tool policy: mutations still require approval from the governed tool that performs them, and credentials remain external references rather than manifest or routine inputs.
 
 Pack validation does not grant access. It proves composition readiness; the connected target still enforces identity, policy, and resource authorization.
 
@@ -58,3 +61,4 @@ That mapping gives an Agent a governed registry context without forcing executio
 - Adapter metadata is not a health check for its external MCP process.
 - Engine-specific assets are never silently translated. The example Spark SQL asset is marked Databricks-only.
 - The included Life Sciences assets are illustrative, original examples and are not validated clinical standards.
+- Routine steps are a constrained autonomous execution contract, not a replacement for Temporal, Prefect, or another deterministic workflow engine. Packs can bind such an engine when exact durable orchestration is required.
