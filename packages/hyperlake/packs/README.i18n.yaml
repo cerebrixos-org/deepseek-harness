@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/hyperlake/packs/README.md
-README.md: bc9ee2b1d1561ace13279051b4cb84db585abcf5
-README.zh.md: 64270f84855f346396883d98e70b39d91064e32e
+README.md: 9a454a2171234df27d7c02189b148a9f3fd7f13d
+README.zh.md: 2407a25a49e32da0e2875a222c62f24858eeb91c

@@ -264,9 +264,19 @@ describe('SuperHarness pack registry', () => {
       ctx.hyperlakePacks.register(loadPackDirectory(root), { defaultEnabled: true })
     }
 
+    expect(ctx.hyperlakePacks.setOutcomes({ packId: 'data-engineering', outcomes: [{
+      id: 'build-model', name: 'Build model', description: 'Build a governed model.',
+      resourceSlotIds: ['data-environment', 'transformation-project'],
+      entrypoint: { kind: 'workflow', reference: 'build-silver-layer' },
+      approval: 'required', evaluationAssetIds: ['sql-safety-evaluation'],
+    }] }).ok).toBe(true)
     expect(ctx.hyperlakePacks.validate('data-engineering', [{
       slotId: 'data-environment', resourceType: 'hyperlake-query-resource', resourceId: 'cluster-123',
-    }])).toMatchObject({ valid: true, installedAdapters: ['hyperlake'] })
+    }])).toMatchObject({ valid: false, installedAdapters: ['hyperlake'], issues: [expect.stringContaining('requires unbound resource slot')] })
+    expect(ctx.hyperlakePacks.validate('data-engineering', [
+      { slotId: 'data-environment', resourceType: 'hyperlake-query-resource', resourceId: 'cluster-123' },
+      { slotId: 'transformation-project', resourceType: 'dbt-project', resourceId: 'dbt-123' },
+    ])).toMatchObject({ valid: true, installedAdapters: ['hyperlake'] })
     expect(ctx.hyperlakePacks.validate('life-sciences-research', [{
       slotId: 'clinical-data-environment', resourceType: 'hyperlake-query-resource', resourceId: 'cluster-123',
     }])).toMatchObject({ valid: true, issues: [] })
@@ -299,7 +309,7 @@ describe('SuperHarness pack registry', () => {
     const session = Session.create(SessionId('session-composed'))
     const agent = { id: SessionId('session-composed') } as Agent
     const ctx = await harness(id => id === 'session-composed' ? agent : undefined)
-    for (const name of ['core_tool', 'shared_tool', 'model_tool', 'clinical_tool']) {
+    for (const name of ['core_tool', 'shared_tool', 'model_tool', 'alternate_tool', 'clinical_tool']) {
       ctx.tools.register(defineTool({
         name, description: name, parameters: {},
         output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
@@ -312,7 +322,10 @@ describe('SuperHarness pack registry', () => {
 
     expect(ctx.hyperlakePacks.createCapability({
       id: 'model-data', name: 'Model data', description: 'Build governed models.',
-      outcomes: [{ id: 'modeled-data', name: 'Modeled data', description: 'A verified model.' }],
+      outcomes: [
+        { id: 'modeled-data', name: 'Modeled data', description: 'A verified model.' },
+        { id: 'reviewed-data', name: 'Reviewed data', description: 'A reviewed model.' },
+      ],
     }).ok).toBe(true)
     expect(ctx.hyperlakePacks.createCapability({
       id: 'clinical-analysis', name: 'Clinical analysis', description: 'Analyze permitted studies.',
@@ -321,10 +334,14 @@ describe('SuperHarness pack registry', () => {
     for (const attachment of [
       { id: 'shared-context', name: 'Shared context', description: 'Common discovery.', providerId: 'model-data', scope: 'shared' as const, execution: 'local' as const, outcomeIds: [], toolNames: ['shared_tool'] },
       { id: 'model-provider', name: 'Model provider', description: 'Model operations.', providerId: 'model-data', scope: 'capability' as const, capabilityId: 'model-data', execution: 'local' as const, outcomeIds: ['modeled-data'], toolNames: ['model_tool'] },
+      { id: 'alternate-provider', name: 'Alternate provider', description: 'Review operations.', providerId: 'model-data', scope: 'capability' as const, capabilityId: 'model-data', execution: 'local' as const, outcomeIds: ['reviewed-data'], toolNames: ['alternate_tool'] },
       { id: 'clinical-provider', name: 'Clinical provider', description: 'Clinical operations.', providerId: 'clinical-analysis', scope: 'capability' as const, capabilityId: 'clinical-analysis', execution: 'platform' as const, outcomeIds: ['study-answer'], toolNames: ['clinical_tool'] },
     ]) expect(ctx.hyperlakePacks.upsertAttachment({ attachment }).ok).toBe(true)
 
-    expect(ctx.hyperlakePacks.select({ sessionId: 'session-composed', packId: 'model-data' }).ok).toBe(true)
+    expect(ctx.hyperlakePacks.select({ sessionId: 'session-composed', packId: 'model-data', outcomeId: 'missing' })).toMatchObject({
+      ok: false, message: 'Select a declared capability outcome.',
+    })
+    expect(ctx.hyperlakePacks.select({ sessionId: 'session-composed', packId: 'model-data', outcomeId: 'modeled-data' }).ok).toBe(true)
     expect(ctx.hyperlakePacks.select({ sessionId: 'session-composed', packId: 'clinical-analysis' })).toMatchObject({
       ok: false, message: 'A capability is already selected for this session.',
     })
@@ -332,6 +349,7 @@ describe('SuperHarness pack registry', () => {
     expect(visible).toContain('core_tool')
     expect(visible).toContain('shared_tool')
     expect(visible).toContain('model_tool')
+    expect(visible).not.toContain('alternate_tool')
     expect(visible).not.toContain('clinical_tool')
     expect(ctx.hyperlakePacks.removeAttachment({ attachmentId: 'clinical-provider' }).ok).toBe(true)
     const resumedAgent = { ...agent, id: SessionId('session-composed-resumed') } as Agent
@@ -343,9 +361,10 @@ describe('SuperHarness pack registry', () => {
     expect(session.events.at(-1)).toMatchObject({
       type: 'superharness/pack-selected',
       data: {
-        outcomes: [{ id: 'modeled-data' }],
+        outcomeId: 'modeled-data',
+        outcomes: [{ id: 'modeled-data' }, { id: 'reviewed-data' }],
         toolNames: ['model_tool', 'shared_tool'],
-        managedToolNames: ['clinical_tool', 'model_tool', 'shared_tool'],
+        managedToolNames: ['alternate_tool', 'clinical_tool', 'model_tool', 'shared_tool'],
       },
     })
   })

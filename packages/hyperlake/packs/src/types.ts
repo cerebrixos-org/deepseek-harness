@@ -14,6 +14,25 @@ export interface CapabilityOutcome {
   id: string
   name: string
   description: string
+  inputs?: CapabilityOutcomeInput[]
+  resourceSlotIds?: string[]
+  entrypoint?: CapabilityOutcomeEntrypoint
+  approval?: 'none' | 'required'
+  evaluationAssetIds?: string[]
+}
+
+/** One non-secret input an outcome expects from the user or calling harness. */
+export interface CapabilityOutcomeInput {
+  id: string
+  name: string
+  description: string
+  required: boolean
+}
+
+/** Executable tool or deterministic workflow used to produce an outcome. */
+export interface CapabilityOutcomeEntrypoint {
+  kind: 'tool' | 'workflow'
+  reference: string
 }
 
 /** Client-safe summary of one tool available for attachment. */
@@ -143,7 +162,7 @@ export interface PackSetEnabledRequest { packId: string; enabled: boolean }
 /** Request to replace one pack's non-secret resource bindings. */
 export interface PackConfigureRequest { packId: string; bindings: PackResourceBinding[] }
 /** Request to select one ready pack before a session's first turn. */
-export interface PackSelectRequest { sessionId: string; packId: string }
+export interface PackSelectRequest { sessionId: string; packId: string; outcomeId?: string }
 /** Request to create a user-owned capability and its outcomes. */
 export interface CapabilityCreateRequest {
   id: string
@@ -194,4 +213,5 @@ export interface PluginOperationResult {
 export interface PackSelectionResult extends PackOperationResult {
   sessionId: string
   version?: string
+  outcomeId?: string
 }

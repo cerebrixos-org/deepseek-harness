@@ -358,7 +358,8 @@
   font-weight: 600;
 }
 
-.tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 2px; }
+.tabs button { flex: none; }
 .tabs button { border-color: transparent; background: transparent; }
 .tabs button[aria-selected='true'] { border-color: var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-3); }
 
@@ -367,6 +368,19 @@
 .overview p, .configure p, .assets p { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
 .issues { grid-column: 1 / -1; margin: 0; padding-left: 18px; color: var(--dsw-alias-state-error-primary); font-size: 12px; }
 .valid { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; color: var(--dsw-alias-state-success-primary) !important; }
+.metric { display: grid; gap: 2px; border-left: 2px solid var(--dsw-alias-state-business-primary); padding: 5px 9px; }
+.metric strong { font-size: 18px; line-height: 22px; }
+.metric span { color: var(--dsw-alias-label-tertiary); font-size: 11px; }
+
+.outcomeEditor { display: grid; gap: 12px; }
+.outcomeCard { display: grid; gap: 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 7px; padding: 12px; }
+.outcomeHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.outcomeHeader strong { font-size: 13px; }
+.outcomeHeader span, .outcomeActions { display: flex; gap: 7px; }
+.outcomeHeader button, .outcomeActions button { min-height: 30px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; padding: 4px 10px; background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.outcomeHeader button:disabled, .outcomeActions button:disabled { opacity: .45; cursor: not-allowed; }
+.outcomeActions { justify-content: space-between; }
+.outcomeActions button:last-child { border-color: var(--dsw-alias-state-business-primary); color: var(--dsw-alias-state-business-primary); }
 
 .configure { display: grid; gap: 10px; }
 .configure fieldset { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(180px, 1fr); gap: 8px 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; padding: 10px; }

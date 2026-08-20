@@ -179,6 +179,7 @@ declare module '@deepseek-ai/dsh-session' {
     'superharness/pack-selected': {
       packId: string
       version: string
+      outcomeId?: string
       bindings: PackResourceBinding[]
       resources: CapabilityResourceAttachment[]
       outcomes: CapabilityOutcome[]
@@ -221,14 +222,42 @@ function parseOutcomes(value: unknown, fallback: string[] = []): CapabilityOutco
   const source = value === undefined ? fallback : value
   if (!Array.isArray(source)) throw new Error('outcomes must be an array')
   const outcomes = source.map((item, index): CapabilityOutcome => {
-    if (typeof item === 'string') return { id: text(item, `outcomes[${index}]`), name: item, description: item }
+    if (typeof item === 'string') return {
+      id: text(item, `outcomes[${index}]`), name: item, description: item,
+      inputs: [], resourceSlotIds: [], approval: 'none', evaluationAssetIds: [],
+    }
     const outcome = record(item, `outcomes[${index}]`)
     const id = text(outcome.id, `outcomes[${index}].id`)
     if (!ID_PATTERN.test(id)) throw new Error(`invalid outcome id ${JSON.stringify(id)}`)
+    const inputsSource = outcome.inputs ?? []
+    if (!Array.isArray(inputsSource)) throw new Error(`outcomes[${index}].inputs must be an array`)
+    const inputs = inputsSource.map((value, inputIndex) => {
+      const input = record(value, `outcomes[${index}].inputs[${inputIndex}]`)
+      const inputId = text(input.id, `outcomes[${index}].inputs[${inputIndex}].id`)
+      if (!ID_PATTERN.test(inputId)) throw new Error(`invalid outcome input id ${JSON.stringify(inputId)}`)
+      return {
+        id: inputId,
+        name: text(input.name, `outcomes[${index}].inputs[${inputIndex}].name`),
+        description: text(input.description, `outcomes[${index}].inputs[${inputIndex}].description`),
+        required: input.required !== false,
+      }
+    })
+    if (new Set(inputs.map(input => input.id)).size !== inputs.length) throw new Error(`outcome ${JSON.stringify(id)} input ids must be unique`)
+    const entrypointSource = outcome.entrypoint === undefined ? undefined : record(outcome.entrypoint, `outcomes[${index}].entrypoint`)
+    const kind = entrypointSource?.kind
+    if (kind !== undefined && kind !== 'tool' && kind !== 'workflow') throw new Error(`outcomes[${index}].entrypoint.kind must be tool or workflow`)
     return {
       id,
       name: text(outcome.name, `outcomes[${index}].name`),
       description: text(outcome.description, `outcomes[${index}].description`),
+      inputs,
+      resourceSlotIds: stringList(outcome.resourceSlotIds, `outcomes[${index}].resourceSlotIds`),
+      ...(entrypointSource === undefined ? {} : { entrypoint: {
+        kind: kind as 'tool' | 'workflow',
+        reference: text(entrypointSource.reference, `outcomes[${index}].entrypoint.reference`),
+      } }),
+      approval: outcome.approval === 'required' ? 'required' : 'none',
+      evaluationAssetIds: stringList(outcome.evaluationAssetIds, `outcomes[${index}].evaluationAssetIds`),
     }
   })
   if (new Set(outcomes.map(outcome => outcome.id)).size !== outcomes.length) throw new Error('outcome ids must be unique')
@@ -694,7 +723,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     for (const attachment of this.effectiveAttachments(id)) {
       if (!pluginIds.has(attachment.providerId)) issues.push(`provider ${JSON.stringify(attachment.providerId)} is not an installed plugin`)
       for (const outcomeId of attachment.outcomeIds) {
-        if (!(pack.manifest.outcomes ?? []).some(outcome => outcome.id === outcomeId)) {
+        if (!this.effectiveOutcomes(id, pack.manifest).some(outcome => outcome.id === outcomeId)) {
           issues.push(`attachment ${JSON.stringify(attachment.id)} names unknown outcome ${JSON.stringify(outcomeId)}`)
         }
       }
@@ -704,6 +733,28 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
         } else if (availableTools.get(toolName)?.core === true) {
           issues.push(`core tool ${JSON.stringify(toolName)} is already available to every capability`)
         }
+      }
+    }
+    const effectiveAssets = this.effectiveAssets(id, pack).map(item => item.asset)
+    const assetIds = new Set(effectiveAssets.map(asset => asset.id))
+    const evaluationIds = new Set(effectiveAssets.filter(asset => asset.type === 'evaluation').map(asset => asset.id))
+    for (const outcome of this.effectiveOutcomes(id, pack.manifest)) {
+      for (const slotId of outcome.resourceSlotIds ?? []) {
+        if (!declaredSlots.has(slotId)) issues.push(`outcome ${JSON.stringify(outcome.id)} requires unknown resource slot ${JSON.stringify(slotId)}`)
+        else if (!bySlot.has(slotId)) issues.push(`outcome ${JSON.stringify(outcome.id)} requires unbound resource slot ${JSON.stringify(slotId)}`)
+      }
+      for (const evaluationId of outcome.evaluationAssetIds ?? []) {
+        if (!evaluationIds.has(evaluationId)) issues.push(`outcome ${JSON.stringify(outcome.id)} requires unavailable evaluation ${JSON.stringify(evaluationId)}`)
+      }
+      if (outcome.entrypoint?.kind === 'tool' && !availableTools.has(outcome.entrypoint.reference)) {
+        issues.push(`outcome ${JSON.stringify(outcome.id)} references unavailable tool ${JSON.stringify(outcome.entrypoint.reference)}`)
+      } else if (outcome.entrypoint?.kind === 'tool' && availableTools.get(outcome.entrypoint.reference)?.core !== true
+        && !this.effectiveAttachments(id).some(attachment => attachment.toolNames.includes(outcome.entrypoint?.reference ?? '')
+          && (attachment.outcomeIds.length === 0 || attachment.outcomeIds.includes(outcome.id)))) {
+        issues.push(`outcome ${JSON.stringify(outcome.id)} entry point ${JSON.stringify(outcome.entrypoint.reference)} is not attached to that outcome`)
+      }
+      if (outcome.entrypoint?.kind === 'workflow' && !assetIds.has(outcome.entrypoint.reference)) {
+        issues.push(`outcome ${JSON.stringify(outcome.id)} references unavailable workflow ${JSON.stringify(outcome.entrypoint.reference)}`)
       }
     }
     return { packId: id, valid: issues.length === 0, installedAdapters, bindings, issues }
@@ -1160,12 +1211,22 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     if (agent.session.events.some(event => event.type === 'superharness/pack-selected')) {
       return { ok: false, packId: request.packId, sessionId: request.sessionId, message: 'A capability is already selected for this session.' }
     }
+    const selectedOutcome = request.outcomeId === undefined
+      ? undefined
+      : entry.outcomes.find(outcome => outcome.id === request.outcomeId)
+    if (request.outcomeId !== undefined && selectedOutcome === undefined) {
+      return { ok: false, packId: request.packId, sessionId: request.sessionId, message: 'Select a declared capability outcome.' }
+    }
     const attachments = this.effectiveAttachments(request.packId)
+      .filter(attachment => selectedOutcome === undefined
+        || attachment.outcomeIds.length === 0
+        || attachment.outcomeIds.includes(selectedOutcome.id))
     const toolNames = [...new Set(attachments.flatMap(attachment => attachment.toolNames))].sort()
     const managedToolNames = [...new Set(this.state.attachments.flatMap(attachment => attachment.toolNames))].sort()
     agent.session.append('superharness/pack-selected', {
       packId: request.packId,
       version: pack.manifest.metadata.version,
+      ...(selectedOutcome === undefined ? {} : { outcomeId: selectedOutcome.id }),
       bindings: entry.bindings.map(binding => ({ ...binding })),
       resources: entry.resources.map(resource => ({ ...resource })),
       outcomes: entry.outcomes.map(outcome => ({ ...outcome })),
@@ -1176,7 +1237,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       managedToolNames,
     })
     this.applyToolRestriction(agent)
-    return { ok: true, packId: request.packId, sessionId: request.sessionId, version: pack.manifest.metadata.version }
+    return {
+      ok: true, packId: request.packId, sessionId: request.sessionId,
+      version: pack.manifest.metadata.version,
+      ...(selectedOutcome === undefined ? {} : { outcomeId: selectedOutcome.id }),
+    }
   }
 
   private promptFor(context: AssembleContext): string {
@@ -1191,10 +1256,18 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       .filter(item => this.enabled(item.manifest.metadata.id) && item.manifest.contributesTo?.includes(selected.data.packId))
     const assets = this.effectiveAssets(selected.data.packId, pack).map(item => item.asset)
       .concat(contributions.flatMap(item => item.manifest.assets ?? []))
-    const approval = assets.some(asset => asset.access === 'mutate' || asset.approval === 'required')
+    const selectedOutcome = selected.data.outcomeId === undefined
+      ? undefined
+      : selected.data.outcomes.find(outcome => outcome.id === selected.data.outcomeId)
+    const approval = selectedOutcome?.approval === 'required' || assets.some(asset => asset.access === 'mutate' || asset.approval === 'required')
       ? 'Mutating actions require the platform approval flow before execution.' : ''
     return [
       `Active Hyperlake capability: ${pack.manifest.metadata.name} (${selected.data.packId}@${selected.data.version}).`,
+      selectedOutcome === undefined ? '' : `Selected outcome: ${selectedOutcome.name}: ${selectedOutcome.description}.`,
+      selectedOutcome?.entrypoint === undefined ? '' : `Outcome entry point: ${selectedOutcome.entrypoint.kind} ${selectedOutcome.entrypoint.reference}.`,
+      selectedOutcome?.inputs?.length ? `Outcome inputs: ${JSON.stringify(selectedOutcome.inputs)}.` : '',
+      selectedOutcome?.resourceSlotIds?.length ? `Outcome resource slots: ${selectedOutcome.resourceSlotIds.join(', ')}.` : '',
+      selectedOutcome?.evaluationAssetIds?.length ? `Required evaluations: ${selectedOutcome.evaluationAssetIds.join(', ')}.` : '',
       `Authorized resource bindings: ${JSON.stringify(selected.data.bindings)}.`,
       `Attached resources: ${JSON.stringify(selected.data.resources)}.`,
       `Supported outcomes: ${selected.data.outcomes.map(outcome => `${outcome.name}: ${outcome.description}`).join('; ') || 'none declared'}.`,
