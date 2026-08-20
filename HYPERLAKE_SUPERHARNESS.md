@@ -33,14 +33,14 @@ Pack validation does not grant access. It proves composition readiness; the conn
 4. Start the bundled runtime with `npx @cerebrixos/hyperlake-superharness`.
 5. Configure a model provider in the local Web UI; this credential is independent from Hyperlake authentication.
 6. Open **Settings → Plugins**. Install any additional plugin from an npm package, Git URL, or absolute local path, then restart SuperHarness. Private sources use the user's existing npm configuration or SSH agent; credentials are never accepted in a source URL.
-7. Open **Settings → Capabilities**. Create or enable a capability, edit its outcomes, discover and attach governed resources, and attach assets, evaluations, and non-core tools exported by installed plugins.
+7. Open **Settings → Capabilities**. Create or enable a capability, then configure each outcome's inputs, required resources, tool or workflow entry point, approval, and evaluations. Attach Hyperlake or third-party tools such as a dbt bundle under **Tools**; core Harness tools are already available.
 8. Select the capability before the first conversation turn, then use it interactively or request an exported goal/routine for bounded autonomous work.
 
 The current Hyperlake CLI stores persistent control-plane credentials in its per-user configuration file with `0600` permissions. Literal secrets must not be placed in shell history, conversations, manifests, routine inputs, or MCP arguments. The planned stronger path is browser OAuth with PKCE and OS-keychain-backed refresh-token storage; until then, use a secret manager to inject the environment variable consumed by `auth login`.
 
 ## Profiles and Packs
 
-The shipped `hyperlake` profile composes the base web Harness, the SuperHarness registry, the Data Engineering capability, its Capability Library UI, and the Hyperlake adapter. Plugin management is explicitly enabled only in this local profile. Core Harness tools are universal. Installed plugins supply additional typed tools, resource providers, assets, evaluations, and outcomes; capabilities compose those contributions and store only opaque resource ids. Set `SUPERHARNESS_HYPERLAKE_DISABLED=1` to inspect or boot the profile without starting the CLI MCP process.
+The shipped `hyperlake` profile composes the base web Harness, the SuperHarness registry, the Data Engineering capability, its Capability Library UI, and the Hyperlake adapter. Plugin management is explicitly enabled only in this local profile. Core Harness tools are universal. Installed Cordis bundles supply additional typed tools, resource providers, knowledge, workflows, evaluations, and outcomes; capabilities map those contributions to outcomes and store only opaque resource ids. Outcome selection exposes global tools plus tools mapped to that outcome. Set `SUPERHARNESS_HYPERLAKE_DISABLED=1` to inspect or boot the profile without starting the CLI MCP process.
 
 ## Upstream compatibility
 

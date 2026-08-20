@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import type {
   CapabilityAssetAttachRequest, CapabilityAssetRemoveRequest, CapabilityAttachmentRemoveRequest,
   CapabilityAttachmentUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest,
-  CapabilityOutcomesSetRequest, CapabilityProviderAttachment, CapabilityResourceRemoveRequest,
+  CapabilityOutcome, CapabilityOutcomesSetRequest, CapabilityProviderAttachment, CapabilityResourceRemoveRequest,
   CapabilityResourceUpsertRequest, PackCatalogEntry, PackCatalogSnapshot, PackConfigureRequest,
   PackOperationResult, PackSelectRequest, PackSelectionResult, PackSetEnabledRequest,
   PluginInstallRequest, PluginOperationResult, PluginRemoveRequest, PluginResourceDiscoverRequest,
@@ -38,7 +38,7 @@ interface CapabilityLibraryViewProps extends CapabilityLibraryInjected, PropsLoc
   surface?: 'settings' | 'home'
 }
 type ViewState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; snapshot: PackCatalogSnapshot }
-type DetailTab = 'outcomes' | 'providers' | 'resources' | 'assets' | 'evaluations'
+type DetailTab = 'overview' | 'outcomes' | 'resources' | 'tools' | 'assets' | 'workflows' | 'evaluations' | 'access' | 'advanced'
 type BindingDraft = Record<string, { resourceType: string; resourceId: string }>
 
 function bindingsFor(entry: PackCatalogEntry): BindingDraft {
@@ -62,7 +62,7 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
   const sessions = useSessions(snapshot => snapshot)
   const currentSession = sessions.current === undefined ? undefined : sessions.byId[sessions.current]
   const [expanded, setExpanded] = useState<string | null>(surface === 'settings' ? 'data-engineering' : null)
-  const [tab, setTab] = useState<DetailTab>('outcomes')
+  const [tab, setTab] = useState<DetailTab>('overview')
   const [state, setState] = useState<ViewState>({ status: 'loading' })
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<Record<string, string>>({})
@@ -92,12 +92,12 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
     } finally { setBusy(null) }
   }
 
-  const usePack = async (entry: PackCatalogEntry): Promise<void> => {
+  const usePack = async (entry: PackCatalogEntry, outcomeId?: string): Promise<void> => {
     if (currentSession === undefined || !currentSession.blank) {
       setNotice(current => ({ ...current, [entry.id]: t('blankSessionRequired') }))
       return
     }
-    const ok = await mutate(entry.id, () => select({ sessionId: currentSession.id, packId: entry.id }))
+    const ok = await mutate(entry.id, () => select({ sessionId: currentSession.id, packId: entry.id, ...(outcomeId ? { outcomeId } : {}) }))
     if (ok) setNotice(current => ({ ...current, [entry.id]: t('selected') }))
   }
 
@@ -118,54 +118,51 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
         const ok = await mutate('create', () => createCapability(request))
         if (ok) { setCreating(false); setExpanded(request.id) }
       }} /> : null}
-      {surface === 'settings' ? <section className={css.shared} aria-labelledby={`${detailsPrefix}-shared`}>
-        <div><h4 id={`${detailsPrefix}-shared`}>{t('sharedProviders')}</h4><p>{t('sharedProvidersDescription')}</p></div>
-        <AttachmentList attachments={shared} removable busy={busy} t={t}
-          onRemove={(id) => { void mutate('shared', () => removeAttachment({ attachmentId: id })) }} />
-        <AttachmentEditor scope="shared" outcomes={[]} tools={snapshot.availableTools} plugins={plugins}
-          busy={busy === 'shared'} t={t}
-          onSave={(attachment) => { void mutate('shared', () => upsertAttachment({ attachment })) }} />
-        {notice.shared ? <p className={css.notice} role="status">{notice.shared}</p> : null}
-      </section> : null}
       <ul className={css.cards}>{entries.map((entry) => {
         const open = expanded === entry.id
         const detailsId = `${detailsPrefix}-${entry.id}`
         const entryBusy = busy === entry.id
         const evaluations = entry.assets.filter(asset => asset.type === 'evaluation')
-        const otherAssets = entry.assets.filter(asset => asset.type !== 'evaluation')
+        const workflows = entry.assets.filter(asset => asset.type === 'routine' || asset.type === 'goal')
+        const otherAssets = entry.assets.filter(asset => asset.type !== 'evaluation' && asset.type !== 'routine' && asset.type !== 'goal')
         const draft = drafts[entry.id] ?? bindingsFor(entry)
         const scoped = snapshot.attachments
           .filter(attachment => attachment.scope === 'capability' && attachment.capabilityId === entry.id)
         return <li className={css.card} key={entry.id} data-open={open ? 'true' : undefined}>
           <div className={css.summary}>
-            <button type="button" className={css.summaryToggle} aria-expanded={open} aria-controls={detailsId} onClick={() => { setExpanded(current => current === entry.id ? null : entry.id); setTab('outcomes') }}>
+            <button type="button" className={css.summaryToggle} aria-expanded={open} aria-controls={detailsId} onClick={() => { setExpanded(current => current === entry.id ? null : entry.id); setTab('overview') }}>
               <span className={css.identity}><span className={css.category}>{t(entry.category === 'solution' ? 'solution' : 'capability')} · v{entry.version}</span><strong>{entry.name}</strong><span className={css.description}>{entry.description}</span></span>
               <IconChevronDownOutline14 className={css.chevron} aria-hidden="true" />
             </button>
             <div className={css.actions}>
               <span className={css.state} data-state={entry.ready ? 'active' : entry.enabled ? 'failed' : 'disabled'}>{entry.ready ? t('ready') : entry.enabled ? t('needsSetup') : t('disabled')}</span>
               <button type="button" disabled={entryBusy} onClick={() => { void mutate(entry.id, () => setEnabled({ packId: entry.id, enabled: !entry.enabled })) }}>{entry.enabled ? t('disable') : t('enable')}</button>
-              <button type="button" disabled={entryBusy || !entry.ready} onClick={() => { void usePack(entry) }}>{t('use')}</button>
+              <button type="button" disabled={entryBusy || !entry.ready} onClick={() => { void usePack(entry, entry.outcomes[0]?.id) }}>{t('use')}</button>
             </div>
           </div>
           {open ? <div className={css.details} id={detailsId}>
-            <div className={css.tabs} role="tablist">{(['outcomes', 'providers', 'resources', 'assets', 'evaluations'] as const).map(value => <button type="button" role="tab" aria-selected={tab === value} key={value} onClick={() => { setTab(value) }}>{t(value)}</button>)}</div>
-            {tab === 'outcomes' ? <div className={css.overview}>
-              <OutcomeEditor entry={entry} busy={entryBusy} t={t}
-                onSave={(outcomes) => { void mutate(entry.id, () => setOutcomes({ packId: entry.id, outcomes })) }} />
+            <div className={css.tabs} role="tablist">{(['overview', 'outcomes', 'resources', 'tools', 'assets', 'workflows', 'evaluations', 'access', 'advanced'] as const).map(value => <button type="button" role="tab" aria-selected={tab === value} key={value} onClick={() => { setTab(value) }}>{t(value)}</button>)}</div>
+            {tab === 'overview' ? <div className={css.overview}>
+              <SummaryMetric label={t('outcomes')} value={entry.outcomes.length} />
+              <SummaryMetric label={t('resources')} value={entry.resources.length} />
+              <SummaryMetric label={t('tools')} value={entry.effectiveTools.length + snapshot.coreTools.length} />
+              <SummaryMetric label={t('evaluations')} value={evaluations.length} />
               {entry.issues.length > 0 ? <ul className={css.issues}>{entry.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : <p className={css.valid}><IconCheckOutline14 />{t('validated')}</p>}
               {entry.userCreated ? <button className={css.danger} type="button" disabled={entryBusy} onClick={() => { void mutate(entry.id, () => deleteCapability({ packId: entry.id })) }}>{t('deleteCapability')}</button> : null}
             </div> : null}
-            {tab === 'providers' ? <div className={css.providerPanel}>
-              {shared.length > 0 ? <><h4>{t('inheritedProviders')}</h4>
+            {tab === 'outcomes' ? <OutcomeEditor entry={entry} tools={[...snapshot.coreTools, ...snapshot.availableTools]} busy={entryBusy} t={t}
+              onUse={(outcomeId) => { void usePack(entry, outcomeId) }}
+              onSave={(outcomes) => { void mutate(entry.id, () => setOutcomes({ packId: entry.id, outcomes })) }} /> : null}
+            {tab === 'tools' ? <div className={css.providerPanel}>
+              <h4>{t('coreTools')}</h4><ToolList tools={snapshot.coreTools} empty={t('none')} />
+              {shared.length > 0 ? <><h4>{t('globalTools')}</h4>
                 <AttachmentList attachments={shared} busy={busy} t={t} /></> : null}
-              <h4>{t('capabilityProviders')}</h4>
+              <h4>{t('capabilityTools')}</h4>
               <AttachmentList attachments={scoped} removable busy={busy} t={t}
                 onRemove={(id) => { void mutate(entry.id, () => removeAttachment({ attachmentId: id })) }} />
               <AttachmentEditor scope="capability" capabilityId={entry.id} outcomes={entry.outcomes}
                 tools={snapshot.availableTools} plugins={plugins} busy={entryBusy} t={t}
                 onSave={(attachment) => { void mutate(entry.id, () => upsertAttachment({ attachment })) }} />
-              <p className={css.message}>{snapshot.coreTools.length} {t('coreToolsUniversal')}</p>
             </div> : null}
             {tab === 'resources' ? <div className={css.configure}>
               {entry.resourceSlots.length === 0 ? <p className={css.message}>{t('none')}</p> : entry.resourceSlots.map(slot => <fieldset key={slot.id}><legend>{slot.id} · {t(slot.required ? 'required' : 'optional')}</legend><p>{slot.description}</p>
@@ -186,12 +183,20 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
                 void mutate(entry.id, () => attachAsset({ packId: entry.id, sourcePackId, sourceAssetId }))
               }}
               onRemove={(attachmentId) => { void mutate(entry.id, () => removeAsset({ packId: entry.id, attachmentId })) }} /> : null}
+            {tab === 'workflows' ? <AssetComposer entry={entry} entries={workflows}
+              sources={snapshot.entries} kind="workflow" busy={entryBusy} t={t}
+              onAttach={(sourcePackId, sourceAssetId) => {
+                void mutate(entry.id, () => attachAsset({ packId: entry.id, sourcePackId, sourceAssetId }))
+              }}
+              onRemove={(attachmentId) => { void mutate(entry.id, () => removeAsset({ packId: entry.id, attachmentId })) }} /> : null}
             {tab === 'evaluations' ? <AssetComposer entry={entry} entries={evaluations}
               sources={snapshot.entries} kind="evaluation" busy={entryBusy} t={t}
               onAttach={(sourcePackId, sourceAssetId) => {
                 void mutate(entry.id, () => attachAsset({ packId: entry.id, sourcePackId, sourceAssetId }))
               }}
               onRemove={(attachmentId) => { void mutate(entry.id, () => removeAsset({ packId: entry.id, attachmentId })) }} /> : null}
+            {tab === 'access' ? <div className={css.providerPanel}><h4>{t('approvalPolicy')}</h4><ul className={css.outcomes}>{entry.outcomes.map(outcome => <li key={outcome.id}><strong>{outcome.name}</strong><p>{t(outcome.approval === 'required' ? 'approvalRequired' : 'noApproval')}</p></li>)}</ul><p className={css.message}>{t('accessDescription')}</p></div> : null}
+            {tab === 'advanced' ? <div className={css.providerPanel}><section className={css.shared} aria-labelledby={`${detailsPrefix}-shared`}><div><h4 id={`${detailsPrefix}-shared`}>{t('globalTools')}</h4><p>{t('sharedProvidersDescription')}</p></div><AttachmentList attachments={shared} removable busy={busy} t={t} onRemove={(id) => { void mutate('shared', () => removeAttachment({ attachmentId: id })) }} /><AttachmentEditor scope="shared" outcomes={[]} tools={snapshot.availableTools} plugins={plugins} busy={busy === 'shared'} t={t} onSave={(attachment) => { void mutate('shared', () => upsertAttachment({ attachment })) }} /></section></div> : null}
             {notice[entry.id] ? <p className={css.notice} role="status">{notice[entry.id]}</p> : null}
           </div> : null}
         </li>
@@ -204,19 +209,15 @@ function CapabilityCreator({ busy, notice, t, onCreate }: { busy: boolean; notic
   const [name, setName] = useState('')
   const [id, setId] = useState('')
   const [description, setDescription] = useState('')
-  const [outcomes, setOutcomes] = useState('')
-  const submit = (): void => {
-    const parsed = outcomes.split('\n').map(line => line.trim()).filter(Boolean).map((line) => {
-      const [outcomeId, outcomeName, ...detail] = line.split('|').map(value => value.trim())
-      return { id: slug(outcomeId ?? ''), name: outcomeName || outcomeId || '', description: detail.join(' | ') || outcomeName || outcomeId || '' }
-    })
-    void onCreate({ id: slug(id || name), name, description, outcomes: parsed })
-  }
+  const [outcomeName, setOutcomeName] = useState('')
+  const [outcomeDescription, setOutcomeDescription] = useState('')
+  const submit = (): void => { void onCreate({ id: slug(id || name), name, description, outcomes: [{ id: slug(outcomeName), name: outcomeName, description: outcomeDescription, inputs: [], resourceSlotIds: [], approval: 'none', evaluationAssetIds: [] }] }) }
   return <section className={css.creator}><h4>{t('newCapability')}</h4><div className={css.formGrid}>
     <label>{t('name')}<input value={name} onChange={(event) => { setName(event.target.value); if (id === '') setId(slug(event.target.value)) }} /></label>
     <label>{t('capabilityId')}<input value={id} onChange={(event) => { setId(slug(event.target.value)) }} /></label>
     <label className={css.wide}>{t('description')}<textarea value={description} onChange={(event) => { setDescription(event.target.value) }} /></label>
-    <label className={css.wide}>{t('outcomeFormat')}<textarea value={outcomes} placeholder="trusted-analysis | Trusted analysis | Produce a governed, cited answer" onChange={(event) => { setOutcomes(event.target.value) }} /></label>
+    <label>{t('firstOutcome')}<input value={outcomeName} onChange={(event) => { setOutcomeName(event.target.value) }} /></label>
+    <label>{t('outcomeDescription')}<input value={outcomeDescription} onChange={(event) => { setOutcomeDescription(event.target.value) }} /></label>
   </div><button type="button" disabled={busy} onClick={submit}>{t('create')}</button>{notice ? <p className={css.notice}>{notice}</p> : null}</section>
 }
 
@@ -254,19 +255,36 @@ function AttachmentList({ attachments, removable = false, busy, t, onRemove }: {
   return <ul className={css.attachments}>{attachments.map(attachment => <li key={attachment.id}><div><strong>{attachment.name}</strong><small>{attachment.scope === 'shared' ? t('shared') : t('capabilitySpecific')} · {attachment.execution}</small><p>{attachment.description}</p><code>{attachment.toolNames.join(', ')}</code></div>{removable && onRemove ? <button type="button" disabled={busy !== null} onClick={() => { onRemove(attachment.id) }}>{t('remove')}</button> : null}</li>)}</ul>
 }
 
-function OutcomeEditor({ entry, busy, t, onSave }: { entry: PackCatalogEntry; busy: boolean; t: CapabilityLibraryViewProps['t']; onSave: (outcomes: PackCatalogEntry['outcomes']) => void }): ReactNode {
-  const serialize = (): string => entry.outcomes.map(outcome => `${outcome.id} | ${outcome.name} | ${outcome.description}`).join('\n')
-  const [value, setValue] = useState(serialize)
-  useEffect(() => { setValue(serialize()) }, [entry.id, entry.outcomes])
-  const save = (): void => {
-    const outcomes = value.split('\n').map(line => line.trim()).filter(Boolean).map((line) => {
-      const [id, name, ...description] = line.split('|').map(part => part.trim())
-      return { id: slug(id ?? ''), name: name || id || '', description: description.join(' | ') || name || id || '' }
-    })
-    onSave(outcomes)
+function OutcomeEditor({ entry, tools, busy, t, onSave, onUse }: { entry: PackCatalogEntry; tools: PackCatalogSnapshot['coreTools']; busy: boolean; t: CapabilityLibraryViewProps['t']; onSave: (outcomes: PackCatalogEntry['outcomes']) => void; onUse: (outcomeId: string) => void }): ReactNode {
+  const normalize = (outcome: CapabilityOutcome): CapabilityOutcome => ({ ...outcome, inputs: outcome.inputs ?? [], resourceSlotIds: outcome.resourceSlotIds ?? [], approval: outcome.approval ?? 'none', evaluationAssetIds: outcome.evaluationAssetIds ?? [] })
+  const [drafts, setDrafts] = useState<CapabilityOutcome[]>(() => entry.outcomes.map(normalize))
+  useEffect(() => { setDrafts(entry.outcomes.map(normalize)) }, [entry.id, entry.outcomes])
+  const update = (index: number, patch: Partial<CapabilityOutcome>): void => {
+    setDrafts(current => current.map((outcome, candidate) => candidate === index ? { ...outcome, ...patch } : outcome))
   }
-  return <div className={css.configure}><label>{t('outcomeFormat')}<textarea value={value} onChange={(event) => { setValue(event.target.value) }} /></label><button type="button" disabled={busy} onClick={save}>{t('saveOutcomes')}</button></div>
+  const workflows = entry.assets.filter(asset => asset.type === 'routine' || asset.type === 'goal')
+  const evaluations = entry.assets.filter(asset => asset.type === 'evaluation')
+  return <div className={css.outcomeEditor}>{drafts.map((outcome, index) => <section className={css.outcomeCard} key={`${outcome.id}:${index}`}>
+    <div className={css.outcomeHeader}><strong>{outcome.name || t('newOutcome')}</strong><span><button type="button" disabled={busy || !entry.ready} onClick={() => { onUse(outcome.id) }}>{t('use')}</button><button type="button" disabled={busy || drafts.length === 1} onClick={() => { setDrafts(current => current.filter((_, candidate) => candidate !== index)) }}>{t('remove')}</button></span></div>
+    <div className={css.formGrid}>
+      <label>{t('name')}<input value={outcome.name} onChange={(event) => { update(index, { name: event.target.value, id: outcome.id || slug(event.target.value) }) }} /></label>
+      <label>{t('outcomeId')}<input value={outcome.id} onChange={(event) => { update(index, { id: slug(event.target.value) }) }} /></label>
+      <label className={css.wide}>{t('description')}<textarea value={outcome.description} onChange={(event) => { update(index, { description: event.target.value }) }} /></label>
+      <label>{t('entrypointType')}<select value={outcome.entrypoint?.kind ?? ''} onChange={(event) => { const kind = event.target.value as 'tool' | 'workflow' | ''; if (kind === '') { setDrafts(current => current.map((candidate, candidateIndex) => { if (candidateIndex !== index) return candidate; const { entrypoint: _entrypoint, ...withoutEntrypoint } = candidate; return withoutEntrypoint })) } else update(index, { entrypoint: { kind, reference: '' } }) }}><option value="">{t('guided')}</option><option value="tool">{t('tool')}</option><option value="workflow">{t('workflow')}</option></select></label>
+      <label>{t('entrypoint')}{outcome.entrypoint?.kind === 'workflow' ? <select value={outcome.entrypoint.reference} onChange={(event) => { update(index, { entrypoint: { kind: 'workflow', reference: event.target.value } }) }}><option value="">{t('selectWorkflow')}</option>{workflows.map(asset => <option key={asset.id} value={asset.id}>{asset.id}</option>)}</select> : <select disabled={outcome.entrypoint === undefined} value={outcome.entrypoint?.reference ?? ''} onChange={(event) => { update(index, { entrypoint: { kind: 'tool', reference: event.target.value } }) }}><option value="">{t('selectTool')}</option>{tools.map(tool => <option key={tool.name} value={tool.name}>{tool.name}</option>)}</select>}</label>
+      <label>{t('requiredResources')}<select multiple value={outcome.resourceSlotIds ?? []} onChange={(event) => { update(index, { resourceSlotIds: [...event.currentTarget.selectedOptions].map(option => option.value) }) }}>{entry.resourceSlots.map(slot => <option key={slot.id} value={slot.id}>{slot.id}</option>)}</select></label>
+      <label>{t('requiredEvaluations')}<select multiple value={outcome.evaluationAssetIds ?? []} onChange={(event) => { update(index, { evaluationAssetIds: [...event.currentTarget.selectedOptions].map(option => option.value) }) }}>{evaluations.map(asset => <option key={asset.id} value={asset.id}>{asset.id}</option>)}</select></label>
+      <label>{t('approvalPolicy')}<select value={outcome.approval ?? 'none'} onChange={(event) => { update(index, { approval: event.target.value as 'none' | 'required' }) }}><option value="none">{t('noApproval')}</option><option value="required">{t('approvalRequired')}</option></select></label>
+      <label className={css.wide}>{t('inputs')}<textarea value={(outcome.inputs ?? []).map(input => `${input.name} | ${input.description} | ${input.required ? 'required' : 'optional'}`).join('\n')} placeholder="Question | What should be answered? | required" onChange={(event) => { update(index, { inputs: event.target.value.split('\n').map(line => line.trim()).filter(Boolean).map((line) => { const [name, description, required] = line.split('|').map(value => value.trim()); return { id: slug(name ?? ''), name: name ?? '', description: description || name || '', required: required !== 'optional' } }) }) }} /></label>
+    </div>
+  </section>)}<div className={css.outcomeActions}><button type="button" disabled={busy} onClick={() => { setDrafts(current => [...current, { id: '', name: '', description: '', inputs: [], resourceSlotIds: [], approval: 'none', evaluationAssetIds: [] }]) }}>{t('addOutcome')}</button><button type="button" disabled={busy} onClick={() => { onSave(drafts) }}>{t('saveOutcomes')}</button></div></div>
 }
+
+function SummaryMetric({ label, value }: { label: string; value: number }): ReactNode {
+  return <div className={css.metric}><strong>{value}</strong><span>{label}</span></div>
+}
+
+function ToolList({ tools, empty }: { tools: PackCatalogSnapshot['coreTools']; empty: string }): ReactNode { return tools.length === 0 ? <p className={css.message}>{empty}</p> : <ul className={css.outcomes}>{tools.map(tool => <li key={tool.name}><strong>{tool.name}</strong><p>{tool.description}</p></li>)}</ul> }
 
 function ResourceComposer({ entry, providers, busy, t, discover, onAttach, onRemove }: {
   entry: PackCatalogEntry
@@ -313,14 +331,14 @@ function AssetComposer({ entry, entries, sources, kind, busy, t, onAttach, onRem
   entry: PackCatalogEntry
   entries: PackCatalogEntry['assets']
   sources: PackCatalogSnapshot['entries']
-  kind: 'asset' | 'evaluation'
+  kind: 'asset' | 'evaluation' | 'workflow'
   busy: boolean
   t: CapabilityLibraryViewProps['t']
   onAttach: (sourcePackId: string, sourceAssetId: string) => void
   onRemove: (attachmentId: string) => void
 }): ReactNode {
   const candidates = sources.flatMap(source => source.id === entry.id ? [] : source.assets
-    .filter(asset => kind === 'evaluation' ? asset.type === 'evaluation' : asset.type !== 'evaluation')
+    .filter(asset => kind === 'evaluation' ? asset.type === 'evaluation' : kind === 'workflow' ? asset.type === 'routine' || asset.type === 'goal' : asset.type !== 'evaluation' && asset.type !== 'routine' && asset.type !== 'goal')
     .map(asset => ({ source, asset })))
   const [selection, setSelection] = useState('')
   const attach = (): void => {
@@ -328,7 +346,7 @@ function AssetComposer({ entry, entries, sources, kind, busy, t, onAttach, onRem
     if (sourcePackId && sourceAssetId) onAttach(sourcePackId, sourceAssetId)
   }
   return <div className={css.configure}><AssetList entries={entries} empty={t('none')} approval={t('approvalRequired')} removeLabel={t('remove')} onRemove={onRemove} busy={busy} />
-    <label>{t(kind === 'evaluation' ? 'addEvaluation' : 'addAsset')}<select value={selection} onChange={(event) => { setSelection(event.target.value) }}><option value="">{t('selectPluginContribution')}</option>{candidates.map(({ source, asset }) => <option value={`${source.id}::${asset.sourceAssetId}`} key={`${source.id}:${asset.sourceAssetId}`}>{source.name} · {asset.id}</option>)}</select></label>
+    <label>{t(kind === 'evaluation' ? 'addEvaluation' : kind === 'workflow' ? 'addWorkflow' : 'addAsset')}<select value={selection} onChange={(event) => { setSelection(event.target.value) }}><option value="">{t('selectPluginContribution')}</option>{candidates.map(({ source, asset }) => <option value={`${source.id}::${asset.sourceAssetId}`} key={`${source.id}:${asset.sourceAssetId}`}>{source.name} · {asset.id}</option>)}</select></label>
     <button type="button" disabled={busy || selection === ''} onClick={attach}>{t('attach')}</button></div>
 }
 

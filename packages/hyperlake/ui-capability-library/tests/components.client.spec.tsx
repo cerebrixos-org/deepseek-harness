@@ -63,7 +63,7 @@ describe('CapabilityLibrary', () => {
     render(<CapabilityLibrary {...props()} />)
     expect(await screen.findByRole('button', { name: /Data Engineering/ })).toBeTruthy()
     expect(screen.getByText('Ready')).toBeTruthy()
-    fireEvent.click(screen.getByRole('tab', { name: 'Assets' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Workflows' }))
     expect(screen.getByText('build-silver')).toBeTruthy()
     expect(screen.getByText('Approval required')).toBeTruthy()
   })
@@ -81,7 +81,7 @@ describe('CapabilityLibrary', () => {
     render(<CapabilityLibrary {...props({ select })} />)
     await screen.findByRole('button', { name: /Data Engineering/ })
     fireEvent.click(screen.getAllByRole('button', { name: 'Use' })[0]!)
-    expect(select).toHaveBeenCalledWith({ sessionId: 'session-1', packId: 'data-engineering' })
+    expect(select).toHaveBeenCalledWith({ sessionId: 'session-1', packId: 'data-engineering', outcomeId: 'data-modeling' })
   })
 
   it('shows packs compactly on the new-session home', async () => {
@@ -107,10 +107,11 @@ describe('CapabilityLibrary', () => {
     const creator = screen.getByRole('heading', { name: 'New capability' }).closest('section')!
     fireEvent.change(within(creator).getByLabelText('Name'), { target: { value: 'Risk Review' } })
     fireEvent.change(within(creator).getByLabelText('Description'), { target: { value: 'Review governed risk decisions.' } })
-    fireEvent.change(within(creator).getByLabelText(/Outcomes/), { target: { value: 'approved-review | Approved review | Produce a verified risk review' } })
+    fireEvent.change(within(creator).getByLabelText('First outcome'), { target: { value: 'Approved review' } })
+    fireEvent.change(within(creator).getByLabelText('Outcome description'), { target: { value: 'Produce a verified risk review' } })
     fireEvent.click(within(creator).getByRole('button', { name: 'Create' }))
     expect(createCapability).toHaveBeenCalledWith(expect.objectContaining({
-      id: 'risk-review', outcomes: [{ id: 'approved-review', name: 'Approved review', description: 'Produce a verified risk review' }],
+      id: 'risk-review', outcomes: [expect.objectContaining({ id: 'approved-review', name: 'Approved review', description: 'Produce a verified risk review' })],
     }))
   })
 
@@ -119,8 +120,8 @@ describe('CapabilityLibrary', () => {
       .mockResolvedValue({ ok: true, packId: 'data-engineering' })
     render(<CapabilityLibrary {...props({ upsertAttachment })} />)
     await screen.findByRole('button', { name: /Data Engineering/ })
-    fireEvent.click(screen.getByRole('tab', { name: 'Providers & tools' }))
-    const editor = screen.getByRole('heading', { name: 'Add capability provider' }).parentElement!
+    fireEvent.click(screen.getByRole('tab', { name: 'Tools' }))
+    const editor = screen.getByRole('heading', { name: 'Add capability tool' }).parentElement!
     fireEvent.change(within(editor).getByLabelText('Name'), { target: { value: 'Governed query' } })
     const tools = within(editor).getByLabelText('Tools')
     const option = within(tools).getByRole('option', { name: /query_data/ }) as HTMLOptionElement

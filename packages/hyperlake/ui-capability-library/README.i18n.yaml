@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/hyperlake/ui-capability-library/README.md
-README.md: 2eb5300a42d6ab42e5d0fae53d40289833d1882a
-README.zh.md: dcb78df952fba400644399c3c0cd627c6c858e79
+README.md: 0151e17390439002aef6472929220173a550e30d
+README.zh.md: 5a84cbd64057057c9ccd6fdb2b81aaf6d5e284d1
