@@ -161,14 +161,17 @@ export interface CapabilityAttachmentUpsertRequest { attachment: CapabilityProvi
 export interface CapabilityAttachmentRemoveRequest { attachmentId: string }
 /** Attach or remove an immutable asset exported by an installed plugin. */
 export interface CapabilityAssetAttachRequest { packId: string; sourcePackId: string; sourceAssetId: string }
+/** Request to detach an asset from a capability without changing its source plugin. */
 export interface CapabilityAssetRemoveRequest { packId: string; attachmentId: string }
 /** Attach or remove a discovered non-secret resource reference. */
 export interface CapabilityResourceUpsertRequest { packId: string; resource: CapabilityResourceAttachment }
+/** Request to detach one non-secret resource reference from a capability. */
 export interface CapabilityResourceRemoveRequest { packId: string; resourceId: string }
 /** Discover resources through one installed provider plugin. */
 export interface PluginResourceDiscoverRequest { providerId: string }
 /** Install or remove a profile plugin using existing npm/SSH credentials. */
 export interface PluginInstallRequest { source: string; confirmed: boolean }
+/** Request to remove one dependency-managed profile plugin. */
 export interface PluginRemoveRequest { packageName: string; confirmed: boolean }
 
 /** Shared mutation result returned by pack lifecycle operations. */
@@ -179,6 +182,7 @@ export interface PackOperationResult {
   entry?: PackCatalogEntry
 }
 
+/** Result of installing or removing a dependency-managed profile plugin. */
 export interface PluginOperationResult {
   ok: boolean
   message: string

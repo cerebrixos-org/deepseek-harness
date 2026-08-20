@@ -272,6 +272,13 @@ Registry for installed industry packs and their explicitly exported assets.
 register(pack: RegisteredPack, options: PackRegistrationOptions = {}): () => void
 
 /**
+ * Register resource discovery owned by one installed plugin.
+ * @param provider - Installed plugin contribution that lists its authorized resources.
+ * @returns A disposer that unregisters the provider.
+ */
+registerResourceProvider(provider: PluginResourceProvider): () => void
+
+/**
  * Stable summaries for all registered packs.
  * @returns Pack summaries sorted by logical id.
  */
@@ -320,6 +327,62 @@ validate(id: string, bindings: PackResourceBinding[] = []): PackValidationResult
 @Remote('createCapability') createCapability(request: CapabilityCreateRequest): PackOperationResult
 
 /**
+ * Replace outcomes without changing installed plugin contributions.
+ * @param request - Capability id and complete replacement outcome set.
+ * @returns The updated capability projection or validation failure.
+ */
+@Remote('setOutcomes') setOutcomes(request: CapabilityOutcomesSetRequest): PackOperationResult
+
+/**
+ * Attach one immutable asset exported by another installed pack plugin.
+ * @param request - Target capability and source asset coordinates.
+ * @returns The updated capability projection or validation failure.
+ */
+@Remote('attachAsset') attachAsset(request: CapabilityAssetAttachRequest): PackOperationResult
+
+/**
+ * Remove a selected asset without modifying its source plugin.
+ * @param request - Target capability and attached asset id.
+ * @returns The updated capability projection.
+ */
+@Remote('removeAsset') removeAsset(request: CapabilityAssetRemoveRequest): PackOperationResult
+
+/**
+ * Attach a resource reference selected from an installed provider plugin.
+ * @param request - Target capability and non-secret resource reference.
+ * @returns The updated capability projection or validation failure.
+ */
+@Remote('upsertResource') upsertResource(request: CapabilityResourceUpsertRequest): PackOperationResult
+
+/**
+ * Remove one capability resource reference.
+ * @param request - Target capability and resource id.
+ * @returns The updated capability projection.
+ */
+@Remote('removeResource') removeResource(request: CapabilityResourceRemoveRequest): PackOperationResult
+
+/**
+ * Discover authorized resources without storing credentials in capability state.
+ * @param request - Installed resource provider to query.
+ * @returns Authorized resources reported by the provider.
+ */
+@Remote('discoverResources') async discoverResources(request: PluginResourceDiscoverRequest): Promise<PluginResourceView[]>
+
+/**
+ * Install an npm, Git, private-SSH, or local bundle into this profile.
+ * @param request - Confirmed dependency source to install.
+ * @returns Installation result and restart requirement.
+ */
+@Remote('installPlugin') async installPlugin(request: PluginInstallRequest): Promise<PluginOperationResult>
+
+/**
+ * Remove one dependency-managed plugin from this profile.
+ * @param request - Confirmed installed package to remove.
+ * @returns Removal result and restart requirement.
+ */
+@Remote('removePlugin') async removePlugin(request: PluginRemoveRequest): Promise<PluginOperationResult>
+
+/**
  * Delete only a user-created capability and its scoped attachments.
  * @param request - User-created capability id.
  * @returns The deletion result.
@@ -348,7 +411,7 @@ validate(id: string, bindings: PackResourceBinding[] = []): PackValidationResult
 @Remote('select') select(request: PackSelectRequest): PackSelectionResult
 ```
 
-Source: [`packages/hyperlake/packs/src/index.ts:324`](../../packages/hyperlake/packs/src/index.ts)
+Source: [`packages/hyperlake/packs/src/index.ts:353`](../../packages/hyperlake/packs/src/index.ts)
 
 <a id="cordis-events"></a>
 

@@ -426,7 +426,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return () => { this.packs.delete(id); this.defaults.delete(id) }
   }
 
-  /** Register resource discovery owned by one installed plugin. */
+  /**
+   * Register resource discovery owned by one installed plugin.
+   * @param provider - Installed plugin contribution that lists its authorized resources.
+   * @returns A disposer that unregisters the provider.
+   */
   registerResourceProvider(provider: PluginResourceProvider): () => void {
     if (!ID_PATTERN.test(provider.id)) throw new Error('resource provider id must be a lowercase logical id')
     if (this.resourceProviders.has(provider.id)) throw new Error(`resource provider ${JSON.stringify(provider.id)} is already registered`)
@@ -909,7 +913,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return { ok: true, packId: id, entry: this.entry(id) }
   }
 
-  /** Replace outcomes without changing installed plugin contributions. */
+  /**
+   * Replace outcomes without changing installed plugin contributions.
+   * @param request - Capability id and complete replacement outcome set.
+   * @returns The updated capability projection or validation failure.
+   */
   @Remote('setOutcomes')
   setOutcomes(request: CapabilityOutcomesSetRequest): PackOperationResult {
     const pack = this.get(request.packId)
@@ -925,7 +933,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return { ok: true, packId: request.packId, entry: this.entry(pack.manifest.metadata.id) }
   }
 
-  /** Attach one immutable asset exported by another installed pack plugin. */
+  /**
+   * Attach one immutable asset exported by another installed pack plugin.
+   * @param request - Target capability and source asset coordinates.
+   * @returns The updated capability projection or validation failure.
+   */
   @Remote('attachAsset')
   attachAsset(request: CapabilityAssetAttachRequest): PackOperationResult {
     this.get(request.packId)
@@ -941,7 +953,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
   }
 
-  /** Remove a selected asset without modifying its source plugin. */
+  /**
+   * Remove a selected asset without modifying its source plugin.
+   * @param request - Target capability and attached asset id.
+   * @returns The updated capability projection.
+   */
   @Remote('removeAsset')
   removeAsset(request: CapabilityAssetRemoveRequest): PackOperationResult {
     this.get(request.packId)
@@ -950,7 +966,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
   }
 
-  /** Attach a resource reference selected from an installed provider plugin. */
+  /**
+   * Attach a resource reference selected from an installed provider plugin.
+   * @param request - Target capability and non-secret resource reference.
+   * @returns The updated capability projection or validation failure.
+   */
   @Remote('upsertResource')
   upsertResource(request: CapabilityResourceUpsertRequest): PackOperationResult {
     this.get(request.packId)
@@ -968,7 +988,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
   }
 
-  /** Remove one capability resource reference. */
+  /**
+   * Remove one capability resource reference.
+   * @param request - Target capability and resource id.
+   * @returns The updated capability projection.
+   */
   @Remote('removeResource')
   removeResource(request: CapabilityResourceRemoveRequest): PackOperationResult {
     this.get(request.packId)
@@ -977,7 +1001,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
   }
 
-  /** Discover authorized resources without storing credentials in capability state. */
+  /**
+   * Discover authorized resources without storing credentials in capability state.
+   * @param request - Installed resource provider to query.
+   * @returns Authorized resources reported by the provider.
+   */
   @Remote('discoverResources')
   async discoverResources(request: PluginResourceDiscoverRequest): Promise<PluginResourceView[]> {
     const provider = this.resourceProviders.get(request.providerId)
@@ -985,7 +1013,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     return (await provider.list()).map(resource => ({ ...resource, providerId: provider.id }))
   }
 
-  /** Install an npm, Git, private-SSH, or local bundle into this profile. */
+  /**
+   * Install an npm, Git, private-SSH, or local bundle into this profile.
+   * @param request - Confirmed dependency source to install.
+   * @returns Installation result and restart requirement.
+   */
   @Remote('installPlugin')
   async installPlugin(request: PluginInstallRequest): Promise<PluginOperationResult> {
     if (!this.allowPluginManagement) return { ok: false, message: 'Plugin management is disabled for this deployment.', restartRequired: false }
@@ -1017,7 +1049,11 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     }
   }
 
-  /** Remove one dependency-managed plugin from this profile. */
+  /**
+   * Remove one dependency-managed plugin from this profile.
+   * @param request - Confirmed installed package to remove.
+   * @returns Removal result and restart requirement.
+   */
   @Remote('removePlugin')
   async removePlugin(request: PluginRemoveRequest): Promise<PluginOperationResult> {
     if (!this.allowPluginManagement) return { ok: false, message: 'Plugin management is disabled for this deployment.', restartRequired: false }
