@@ -19,6 +19,16 @@ provides:
   - clinical-data-models
   - clinical-study-analysis
   - regulated-output-evaluation
+outcomes:
+  - id: clinical-data-models
+    name: Build clinical data models
+    description: Apply governed clinical schemas and transformation assets to authorized research data.
+  - id: clinical-study-analysis
+    name: Analyze clinical studies
+    description: Query and summarize permitted study data with reproducible methods and provenance.
+  - id: regulated-output-evaluation
+    name: Evaluate regulated outputs
+    description: Verify aggregation, citations, disclosure constraints, and required approval gates.
 contributesTo:
   - data-engineering
 resourceSlots:

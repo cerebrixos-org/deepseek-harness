@@ -318,6 +318,9 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
     const help = await runBuiltBin(['--help'])
     expect(help.code).toBe(0)
     expect(help.stdout).toContain('hyperlake-superharness web')
+    expect(help.stdout).toContain('@cerebrixos/hyperlake@0.2.1 auth login')
+    expect(help.stdout).toContain('auth whoami')
+    expect(help.stdout).toContain('never put')
     expect(help.stdout).toContain('dsh plugin --profile')
     expect(help.stdout).not.toMatch(/^\s+(?:tui|meta|upgrade)\b/mu)
     for (const removed of [['tui'], ['--config', 'x.yml'], ['-p', 'task'], ['run', 'task']]) {
@@ -650,6 +653,21 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       }
       expect(Object.keys(manifest.dependencies)).toEqual(['anchored-bundle'])
       expect(manifest.dsh.profile.bundles).toContain('anchored-bundle')
+
+      const removed = await runBuiltBin(
+        ['plugin', '--profile', 'anchor', 'remove', 'anchored-bundle'],
+        { DSH_HOME: home },
+        checkout,
+      )
+      expect(removed.code).toBe(0)
+      const afterRemove = JSON.parse(
+        readFileSync(join(home, 'profiles', 'anchor', 'package.json'), 'utf8'),
+      ) as {
+        dependencies?: Record<string, string>
+        dsh: { profile: { bundles: string[] } }
+      }
+      expect(Object.keys(afterRemove.dependencies ?? {})).toEqual([])
+      expect(afterRemove.dsh.profile.bundles).not.toContain('anchored-bundle')
     } finally {
       rmSync(home, { recursive: true, force: true })
       rmSync(checkout, { recursive: true, force: true })

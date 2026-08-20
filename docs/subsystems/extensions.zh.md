@@ -256,6 +256,163 @@ Types: [Agent](core.md)
 
 Source: [`packages/extensions/cordis-host-runner/src/index.ts:124`](../../packages/extensions/cordis-host-runner/src/index.ts)
 
+<a id="ctxhyperlakepacks--superharnesspackregistry"></a>
+
+### `ctx.hyperlakePacks` — `SuperHarnessPackRegistry`
+
+Registry for installed industry packs and their explicitly exported assets.
+
+```ts cordis-catalog
+/**
+ * Register one validated pack for the calling plugin's effect lifetime.
+ * @param pack - Validated pack to register.
+ * @param options - Registration defaults owned by the pack plugin.
+ * @returns A disposer that unregisters the pack.
+ */
+register(pack: RegisteredPack, options: PackRegistrationOptions = {}): () => void
+
+/**
+ * Register resource discovery owned by one installed plugin.
+ * @param provider - Installed plugin contribution that lists its authorized resources.
+ * @returns A disposer that unregisters the provider.
+ */
+registerResourceProvider(provider: PluginResourceProvider): () => void
+
+/**
+ * Stable summaries for all registered packs.
+ * @returns Pack summaries sorted by logical id.
+ */
+list(): Array<{ id: string; version: string; category: PackCategory; name: string; description: string }>
+
+/**
+ * Return one registered pack or fail with an actionable error.
+ * @param id - Stable pack id.
+ * @returns The registered built-in or user-defined pack.
+ */
+get(id: string): RegisteredPack
+
+/**
+ * Check dependencies, adapter capabilities, and required resource bindings.
+ * @param id - Stable pack id.
+ * @param bindings - Candidate non-secret resource bindings.
+ * @returns Composition-readiness details and actionable issues.
+ */
+validate(id: string, bindings: PackResourceBinding[] = []): PackValidationResult
+
+/**
+ * Complete lifecycle projection consumed by Web and other trusted clients.
+ * @returns Current pack, tool, binding, and attachment state.
+ */
+@Remote('catalog') catalog(): PackCatalogSnapshot
+
+/**
+ * Enable or disable one installed, allowlisted pack.
+ * @param request - Pack id and desired lifecycle state.
+ * @returns The updated pack projection.
+ */
+@Remote('setEnabled') setEnabled(request: PackSetEnabledRequest): PackOperationResult
+
+/**
+ * Replace non-secret resource references for one pack.
+ * @param request - Pack id and complete resource-binding set.
+ * @returns The updated pack projection or validation failure.
+ */
+@Remote('configure') configure(request: PackConfigureRequest): PackOperationResult
+
+/**
+ * Create a user-owned capability definition; providers and resources are attached separately.
+ * @param request - Capability identity, description, and outcomes.
+ * @returns The created capability projection or validation failure.
+ */
+@Remote('createCapability') createCapability(request: CapabilityCreateRequest): PackOperationResult
+
+/**
+ * Replace outcomes without changing installed plugin contributions.
+ * @param request - Capability id and complete replacement outcome set.
+ * @returns The updated capability projection or validation failure.
+ */
+@Remote('setOutcomes') setOutcomes(request: CapabilityOutcomesSetRequest): PackOperationResult
+
+/**
+ * Attach one immutable asset exported by another installed pack plugin.
+ * @param request - Target capability and source asset coordinates.
+ * @returns The updated capability projection or validation failure.
+ */
+@Remote('attachAsset') attachAsset(request: CapabilityAssetAttachRequest): PackOperationResult
+
+/**
+ * Remove a selected asset without modifying its source plugin.
+ * @param request - Target capability and attached asset id.
+ * @returns The updated capability projection.
+ */
+@Remote('removeAsset') removeAsset(request: CapabilityAssetRemoveRequest): PackOperationResult
+
+/**
+ * Attach a resource reference selected from an installed provider plugin.
+ * @param request - Target capability and non-secret resource reference.
+ * @returns The updated capability projection or validation failure.
+ */
+@Remote('upsertResource') upsertResource(request: CapabilityResourceUpsertRequest): PackOperationResult
+
+/**
+ * Remove one capability resource reference.
+ * @param request - Target capability and resource id.
+ * @returns The updated capability projection.
+ */
+@Remote('removeResource') removeResource(request: CapabilityResourceRemoveRequest): PackOperationResult
+
+/**
+ * Discover authorized resources without storing credentials in capability state.
+ * @param request - Installed resource provider to query.
+ * @returns Authorized resources reported by the provider.
+ */
+@Remote('discoverResources') async discoverResources(request: PluginResourceDiscoverRequest): Promise<PluginResourceView[]>
+
+/**
+ * Install an npm, Git, private-SSH, or local bundle into this profile.
+ * @param request - Confirmed dependency source to install.
+ * @returns Installation result and restart requirement.
+ */
+@Remote('installPlugin') async installPlugin(request: PluginInstallRequest): Promise<PluginOperationResult>
+
+/**
+ * Remove one dependency-managed plugin from this profile.
+ * @param request - Confirmed installed package to remove.
+ * @returns Removal result and restart requirement.
+ */
+@Remote('removePlugin') async removePlugin(request: PluginRemoveRequest): Promise<PluginOperationResult>
+
+/**
+ * Delete only a user-created capability and its scoped attachments.
+ * @param request - User-created capability id.
+ * @returns The deletion result.
+ */
+@Remote('deleteCapability') deleteCapability(request: CapabilityDeleteRequest): PackOperationResult
+
+/**
+ * Add or replace one shared or capability-specific provider/tool attachment.
+ * @param request - Complete attachment definition.
+ * @returns The attachment update result.
+ */
+@Remote('upsertAttachment') upsertAttachment(request: CapabilityAttachmentUpsertRequest): PackOperationResult
+
+/**
+ * Remove one provider/tool attachment by stable id.
+ * @param request - Stable attachment id.
+ * @returns The attachment removal result.
+ */
+@Remote('removeAttachment') removeAttachment(request: CapabilityAttachmentRemoveRequest): PackOperationResult
+
+/**
+ * Select a ready pack for a blank session and record immutable provenance.
+ * @param request - Target session and pack ids.
+ * @returns Selection provenance or an actionable rejection.
+ */
+@Remote('select') select(request: PackSelectRequest): PackSelectionResult
+```
+
+Source: [`packages/hyperlake/packs/src/index.ts:353`](../../packages/hyperlake/packs/src/index.ts)
+
 <a id="cordis-events"></a>
 
 ### `cordis/*` events

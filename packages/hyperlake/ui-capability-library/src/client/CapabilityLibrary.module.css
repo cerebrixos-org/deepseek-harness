@@ -87,6 +87,102 @@
   font-size: 12px;
 }
 
+.headingAction,
+.creator > button,
+.attachmentEditor > button,
+.attachments button,
+.danger {
+  min-height: 30px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.headingAction { margin-left: auto; }
+.creator > button, .attachmentEditor > button { border-color: var(--dsw-alias-state-business-primary); color: var(--dsw-alias-state-business-primary); }
+.danger { justify-self: start; color: var(--dsw-alias-state-error-primary); }
+.headingAction:disabled, .creator > button:disabled, .attachmentEditor > button:disabled, .attachments button:disabled, .danger:disabled { opacity: .45; cursor: not-allowed; }
+
+.shared,
+.creator {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  padding: 14px 2px;
+}
+
+.shared h4, .shared p, .creator h4, .providerPanel h4, .attachmentEditor h4 { margin: 0; }
+.shared > div:first-child > p { margin-top: 3px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.formGrid label {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+}
+
+.formGrid input, .formGrid textarea, .formGrid select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 5px;
+  padding: 7px 8px;
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.formGrid input, .formGrid select:not([multiple]) { height: 34px; }
+.formGrid textarea { min-height: 66px; resize: vertical; }
+.formGrid select[multiple] { min-height: 88px; }
+.wide { grid-column: 1 / -1; }
+.formGrid .confirmRow { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.formGrid .confirmRow input { width: 16px; height: 16px; margin: 0; padding: 0; }
+
+.providerPanel, .attachmentEditor { display: grid; gap: 12px; }
+.attachmentEditor { border-top: 1px solid var(--dsw-alias-border-l2); padding-top: 12px; }
+
+.attachments, .outcomes {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attachments li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  padding: 9px 0;
+}
+
+.attachments li > div { display: grid; gap: 2px; min-width: 0; }
+.attachments strong, .outcomes strong { font-size: 12px; }
+.attachments small, .outcomes small { color: var(--dsw-alias-label-tertiary); font-size: 11px; }
+.attachments p, .outcomes p { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+.attachments code { overflow: hidden; color: var(--dsw-alias-label-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+
+.outcomes { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+.outcomes li { display: grid; align-content: start; gap: 3px; border-left: 2px solid var(--dsw-alias-state-business-primary); padding-left: 9px; }
+
 .cards,
 .resources {
   margin: 0;
@@ -341,6 +437,8 @@
   .actions { width: 100%; flex-wrap: wrap; }
   .overview { grid-template-columns: minmax(0, 1fr); }
   .configure fieldset { grid-template-columns: minmax(0, 1fr); }
+  .formGrid, .outcomes { grid-template-columns: minmax(0, 1fr); }
+  .wide { grid-column: auto; }
 
   .resources li {
     grid-template-columns: 20px minmax(0, 1fr) auto;
