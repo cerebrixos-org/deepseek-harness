@@ -31,9 +31,9 @@ describe('upstream upgrade verification', () => {
       'verify workspace constraints',
       'typecheck host and client contracts',
       'run Hyperlake integration tests',
-      'boot the Hyperlake profile with an MCP subprocess',
       'build the client libraries',
       'build the production web application',
+      'boot the Hyperlake profile with an MCP subprocess',
       'compose the keyless Hyperlake profile',
     ])
     expect(focused.at(-1)?.env?.SUPERHARNESS_HYPERLAKE_DISABLED).toBe('1')

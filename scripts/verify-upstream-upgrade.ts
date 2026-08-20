@@ -61,6 +61,8 @@ export function upgradeCommands(full: boolean): readonly UpgradeCommand[] {
       label: 'run Hyperlake integration tests', command: 'pnpm',
       args: ['exec', 'vitest', 'run', ...FOCUSED_TESTS, '--reporter=dot'],
     },
+    { label: 'build the client libraries', command: 'pnpm', args: ['run', 'build:lib:client'] },
+    { label: 'build the production web application', command: 'pnpm', args: ['run', 'build:web'] },
     {
       label: 'boot the Hyperlake profile with an MCP subprocess', command: 'pnpm',
       args: [
@@ -68,8 +70,6 @@ export function upgradeCommands(full: boolean): readonly UpgradeCommand[] {
         'apps/cli/tests/hyperlake-profile.e2e.ts', '--reporter=dot',
       ],
     },
-    { label: 'build the client libraries', command: 'pnpm', args: ['run', 'build:lib:client'] },
-    { label: 'build the production web application', command: 'pnpm', args: ['run', 'build:web'] },
     {
       label: 'compose the keyless Hyperlake profile', command: 'pnpm',
       args: ['dsh', '--profile', 'hyperlake', '--dump-default-config'],
