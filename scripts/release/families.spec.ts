@@ -89,8 +89,8 @@ describe('release families', () => {
     expect(() => { vendor.validatePayload(vendored, []) }).toThrow(/empty tarball/)
   })
 
-  it('drives the installed entry only for the family that publishes one', () => {
-    expect(releaseFamily('dsh').installedEntry).toEqual({ packageName: '@deepseek-ai/dsh', binPath: 'lib/bin.js' })
+  it('drives the installed entry only for the family that publishes the branded executable', () => {
+    expect(releaseFamily('dsh').installedEntry).toBeUndefined()
     expect(releaseFamily('superharness').installedEntry).toEqual({
       packageName: '@cerebrixos/hyperlake-superharness',
       binPath: 'lib/bin.js',

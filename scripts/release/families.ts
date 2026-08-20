@@ -1,8 +1,9 @@
 /**
- * The three independent publish sequences this repository releases from
- * (`packages/` + `apps/`, `vendor/`, and `native/`) and the two this module
- * owns: `dsh` and `vendor`. Each family carries its own version baseline, tag
- * naming, and publish set, so releasing one never republishes another
+ * The independent publish sequences this repository releases from
+ * (`packages/` + `apps/`, Hyperlake extensions, `vendor/`, and `native/`) and
+ * the three this module owns: `dsh`, `superharness`, and `vendor`. Each family
+ * carries its own version baseline, tag naming, and publish set, so releasing
+ * one never republishes another
  * ([rationale](../../.agents/notes/implemented/process/2026-08-10-npm-release-sequences.md)).
  *
  * The family dimension lives here only. A new sequence adds a subclass and a
@@ -232,7 +233,9 @@ class DshFamily extends ReleaseFamily {
     validateTarballPayload(files, member.name)
   }
 
-  readonly installedEntry = { packageName: '@deepseek-ai/dsh', binPath: 'lib/bin.js' }
+  // The branded executable moved to the independently versioned SuperHarness
+  // family. The remaining @deepseek-ai packages are libraries and bundles.
+  readonly installedEntry = undefined
 }
 
 /** Hyperlake extensions and executable: one independently publishable version. */
