@@ -342,19 +342,25 @@ describe('BashTerminalBackend startup rollback', () => {
     await session.close('test complete')
   })
 
-  it('bootstraps a pwsh dialect through the prompt function and scrubs bash-only env', async () => {
+  it('waits past an echoed prompt definition while bootstrapping a pwsh dialect', async () => {
     const ctx = new Context()
     await ctx.plugin(EmptySandbox)
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/workspace' })
     let spawned: SubprocessTerminalSpawnSpec | undefined
-    let sent: TerminalSendRequest | undefined
+    const sends: TerminalSendRequest[] = []
+    const initialize = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     const session = {
       motd: '',
+      initialize,
       startSend: (request: TerminalSendRequest) => {
-        sent = request
+        sends.push(request)
+        const ready = sends.length > 1
         return {
           done: Promise.resolve({
-            viewport: 'setup-echo dsh> ', waitReason: 'stdin_read' as const,
+            viewport: ready
+              ? 'setup-echo contains dsh> but continues\n__DSH_PWSH_READY__\ndsh> '
+              : 'setup-echo contains dsh> but continues',
+            waitReason: ready ? 'stdin_read' as const : 'inferred_idle' as const,
             sessionStatus: { kind: 'running' as const }, truncated: false,
           }),
           readOutput: () => ({ delta: '', truncated: false }),
@@ -370,8 +376,11 @@ describe('BashTerminalBackend startup rollback', () => {
       () => session,
     )
     expect(await backend.spawn(spec(agent(ctx)))).toBe(session)
-    expect(sent).toMatchObject({ text: ENCODING_PREAMBLE + PWSH_PROMPT_SETUP, submit: true })
-    expect(session.motd).toBe('setup-echo dsh> ')
+    expect(initialize).toHaveBeenCalledWith(undefined)
+    expect(sends).toHaveLength(2)
+    expect(sends[0]).toMatchObject({ text: ENCODING_PREAMBLE + PWSH_PROMPT_SETUP, submit: true })
+    expect(sends[1]).toMatchObject({ text: '', submit: false })
+    expect(session.motd).toBe('setup-echo contains dsh> but continues\ndsh> ')
     expect(spawned?.env).toMatchObject({
       TERM: 'dumb', NO_COLOR: '1', DSH_SHELL: '1', DSH_SESSION_ID: 'agent', DSH_PTY_SESSION_ID: 'pty-1',
     })
@@ -384,15 +393,17 @@ describe('BashTerminalBackend startup rollback', () => {
     await ctx.plugin(EmptySandbox)
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/workspace' })
     const sends: TerminalSendRequest[] = []
+    const initialize = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     const session = {
       motd: '',
+      initialize,
       startSend: (request: TerminalSendRequest) => {
         sends.push(request)
-        const second = sends.length > 1
+        const ready = sends.length > 1
         return {
           done: Promise.resolve({
-            viewport: second ? 'dsh> ' : 'PowerShell 7.6.4\n',
-            waitReason: 'inferred_idle' as const,
+            viewport: ready ? '__DSH_PWSH_READY__\ndsh> ' : 'PowerShell 7.6.4\n',
+            waitReason: ready ? 'stdin_read' as const : 'inferred_idle' as const,
             sessionStatus: { kind: 'running' as const }, truncated: false,
           }),
           readOutput: () => ({ delta: '', truncated: false }),
@@ -408,6 +419,7 @@ describe('BashTerminalBackend startup rollback', () => {
       () => session,
     )
     await backend.spawn(spec(agent(ctx)))
+    expect(initialize).toHaveBeenCalledWith(undefined)
     expect(sends).toHaveLength(2)
     expect(sends[1]).toMatchObject({ text: '', submit: false })
     expect(session.motd).toBe('dsh> ')
@@ -418,6 +430,7 @@ describe('BashTerminalBackend startup rollback', () => {
     await ctx.plugin(EmptySandbox)
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/workspace' })
     const sessionFor = (waitReason: TerminalWaitReason): LocalPtySession => ({
+      initialize: () => Promise.resolve(),
       startSend: () => ({
         done: Promise.resolve({
           viewport: 'no-prompt', waitReason,
@@ -440,13 +453,16 @@ describe('BashTerminalBackend startup rollback', () => {
     await ctx.plugin(EmptySandbox)
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/workspace' })
     const sends: TerminalSendRequest[] = []
+    const initialize = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     const session = {
       motd: '',
+      initialize,
       startSend: (request: TerminalSendRequest) => {
         sends.push(request)
         return {
           done: Promise.resolve({
-            viewport: 'dsh> ', waitReason: 'stdin_read' as const,
+            viewport: '__DSH_PWSH_READY__\ndsh> ',
+            waitReason: 'stdin_read' as const,
             sessionStatus: { kind: 'running' as const }, truncated: false,
           }),
           readOutput: () => ({ delta: '', truncated: false }),
@@ -464,8 +480,9 @@ describe('BashTerminalBackend startup rollback', () => {
     const signal = new AbortController().signal
     const spawned = await backend.spawn({ ...spec(agent(ctx)), signal })
     expect(spawned.motd).toBe('dsh> ')
+    expect(initialize).toHaveBeenCalledWith(signal)
     expect(sends).toHaveLength(1)
-    expect(sends[0]?.signal).toBe(signal)
+    expect(sends.every(send => send.signal === signal)).toBe(true)
   })
 })
 

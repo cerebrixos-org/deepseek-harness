@@ -19,6 +19,7 @@ import { SettingsProvider, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { CredentialProvider } from '@deepseek-ai/dsh-credentials'
 import type { CredentialInfo, CredentialRef, ResolvedCredential } from '@deepseek-ai/dsh-credentials'
+import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 import type { HostFrame } from '../src/api/index.ts'
 import type { RpcRequest, RpcResponse } from '../src/api/rpc.ts'
 import { RpcId } from '../src/api/rpc.ts'
@@ -42,6 +43,11 @@ function expectErr<T>(response: RpcResponse<T>): { code: string; message: string
   expect(response.result.ok).toBe(false)
   if (response.result.ok) throw new Error('unreachable')
   return response.result.error
+}
+
+function anyNumber(): JsonValue {
+  const matcher: unknown = expect.any(Number)
+  return matcher as JsonValue
 }
 
 /** In-memory settings provider: the Service Definition base class owns all tested behavior. */
@@ -230,7 +236,7 @@ function forwardedSettings(ns: string): HostFrame {
     type: 'host/remote-event',
     event: 'settings/document-updated',
     // The revision is the Host's own counter, so the matcher is the assertion.
-    args: [ns, expect.any(Number)], // oxlint-disable-line typescript/no-unsafe-assignment
+    args: [ns, anyNumber()],
   }
 }
 
@@ -321,11 +327,10 @@ describe('settings domain', () => {
     expect(opened).toEqual([])
   })
 
-  it('serves every registered namespace, including one this repository never named', async () => {
-    // Registering IS the exposure: a plugin distributed outside this
-    // repository configures itself from the browser without a change here.
-    // The plane stays loopback-only and secret-redacted, and which surface
-    // renders a namespace is the browser's decision, not this proxy's.
+  it('serves configurable providers and the explicit Web settings allowlist', async () => {
+    // Registration alone does not expose an arbitrary plugin across the Web
+    // boundary. Provider registration and the product allowlist are the
+    // auditable sources of remotely configurable namespaces.
     const ctx = await harness()
     ctx.settings.register(NS, AdapterConfig)
     ctx.settings.register(settingsNamespace('some-other-plugin'), z.object({ secretPath: z.string() }))
@@ -356,7 +361,7 @@ describe('settings domain', () => {
 
     const value = expectOk(await api.settings.describe(request({})))
     expect(value.namespaces.map(view => view.ns)).toEqual([
-      'llm-deepseek', 'some-other-plugin', 'permission', 'ui-theme', 'locale',
+      'llm-deepseek', 'permission', 'ui-theme', 'locale',
       'ui-conversation', 'shell', 'agent-loop', 'web-search-deepseek',
     ])
     const permission = expectOk(await api.settings.mutate(request({
@@ -395,13 +400,14 @@ describe('settings domain', () => {
     })))
     expect(webSearch.value).toEqual({ baseURL: 'https://search.test/v1' })
 
-    const other = expectOk(await api.settings.update(request({
+    const other = expectErr(await api.settings.update(request({
       ns: 'some-other-plugin',
       patch: { secretPath: '/etc/shadow' },
     })))
-    expect(other.value).toEqual({ secretPath: '/etc/shadow' })
+    expect(other.code).toBe('settings-rejected')
+    expect(other.message).toContain('is not exposed')
     expect(ctx.settings.describe().find(d => String(d.ns) === 'some-other-plugin')?.value)
-      .toEqual({ secretPath: '/etc/shadow' })
+      .toEqual({})
   })
 
   it('serves product preference namespaces without invalidating the model catalog', async () => {
@@ -441,17 +447,16 @@ describe('settings domain', () => {
       .toEqual({ default: 'minimal' })
   })
 
-  it('keeps serving a provider namespace whose directory entry is gone', async () => {
-    // The configurable-provider directory says what the Models page can offer,
-    // not what a user may configure: a dormant route's stored section is still
-    // theirs to edit, and losing the entry must not strand it.
+  it('stops exposing a provider namespace whose directory entry is gone', async () => {
+    // Removing the provider registration closes its remote configuration
+    // surface even if a dormant settings section still exists locally.
     const ctx = await harness({ configurableProviders: false })
     ctx.settings.register(NS, AdapterConfig)
     const api = createApiProxy(ctx, DEFAULTS)
     expect(expectOk(await api.settings.describe(request({}))).namespaces.map(view => view.ns))
-      .toEqual(['llm-deepseek'])
-    expect(expectOk(await api.settings.update(request({ ns: 'llm-deepseek', patch: { baseURL: 'https://x' } }))).value)
-      .toMatchObject({ baseURL: 'https://x' })
+      .toEqual([])
+    const rejected = expectErr(await api.settings.update(request({ ns: 'llm-deepseek', patch: { baseURL: 'https://x' } })))
+    expect(rejected.message).toContain('is not exposed')
   })
 
   it('forwards a provider settings change for model-catalog consumers', async () => {
@@ -561,7 +566,7 @@ describe('settings domain', () => {
     const unknown = expectErr(await api.settings.update(request({ ns: 'unknown-ns', patch: {} })))
     const malformed = expectErr(await api.settings.update(request({ ns: 'Not A Namespace', patch: {} })))
     expect(unknown.code).toBe('settings-rejected')
-    expect(unknown.message).toContain('is not registered')
+    expect(unknown.message).toContain('is not exposed')
     expect(malformed.code).toBe(unknown.code)
   })
 

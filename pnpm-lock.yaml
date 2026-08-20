@@ -127,8 +127,8 @@ importers:
   apps/cli:
     dependencies:
       '@cerebrixos/hyperlake':
-        specifier: 0.2.1
-        version: 0.2.1
+        specifier: 0.2.4
+        version: 0.2.4
       '@cerebrixos/superharness-adapter-hyperlake':
         specifier: workspace:^
         version: link:../../packages/hyperlake/adapter-hyperlake
@@ -141,6 +141,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-group':
+        specifier: workspace:^
+        version: link:../../vendor/group
       '@deepseek-ai/cordis-plugin-hmr':
         specifier: workspace:^
         version: link:../../vendor/hmr
@@ -5353,9 +5356,6 @@ importers:
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../../client/runtime
-      '@deepseek-ai/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
       '@deepseek-ai/dsh-client-ui-conversation':
         specifier: workspace:^
         version: link:../../client/ui-conversation
@@ -8025,6 +8025,9 @@ importers:
 
   packages/subprocess/subprocess-local:
     dependencies:
+      '@xterm/headless':
+        specifier: 6.0.0
+        version: 6.0.0
       koffi:
         specifier: ^3.1.0
         version: 3.1.1
@@ -9742,8 +9745,8 @@ packages:
   '@bufbuild/protobuf@2.13.0':
     resolution: {integrity: sha512-acq7c49vxfm1ggJ95P70TX7ABDM0vxr1SYD3BB0o0jnBLB4OAqeHyKuN+cD3w80gXEDQ2zxHpR6CUeA+O/aU9g==}
 
-  '@cerebrixos/hyperlake@0.2.1':
-    resolution: {integrity: sha512-MhPa7qLnW4KHXxMTo8Xv/Q/ZZPnDR1OTzmV3onaut40PyuylJCBas5pfMYLGXwrrvgd61XP0RhupfOIvLG+0+g==}
+  '@cerebrixos/hyperlake@0.2.4':
+    resolution: {integrity: sha512-6KGrR0cJsEKMjKxaTxpGvwQfhidoZsry9K5i4RCgajSmI/Xbh8HszPP/LqPMHtcIE27nWE4jYmzgeewNY7mv1A==}
     engines: {node: '>=20'}
     cpu: [x64, arm64]
     os: [darwin, linux, win32]
@@ -12129,6 +12132,9 @@ packages:
 
   '@vueuse/shared@12.8.2':
     resolution: {integrity: sha512-dznP38YzxZoNloI0qpEfpkms8knDtaoQ6Y/sfS0L7Yki4zh40LFHEhur0odJC6xTHG5dxWVPiUWBXn+wCG2s5w==}
+
+  '@xterm/headless@6.0.0':
+    resolution: {integrity: sha512-5Yj1QINYCyzrZtf8OFIHi47iQtI+0qYFPHmouEfG8dHNxbZ9Tb9YGSuLcsEwj9Z+OL75GJqPyJbyoFer80a2Hw==}
 
   '@yarnpkg/cli-dist@4.17.1':
     resolution: {integrity: sha512-2tiSQuJNl/L3QwTdrq6lKWDpkcnp9MGvCT/rIldHcbu3SWfnLdmehvt3eulX1hT7FFt1Gjfq3CesF+kvhFip6g==}
@@ -15442,7 +15448,7 @@ snapshots:
 
   '@bufbuild/protobuf@2.13.0': {}
 
-  '@cerebrixos/hyperlake@0.2.1': {}
+  '@cerebrixos/hyperlake@0.2.4': {}
 
   '@chevrotain/types@11.1.2': {}
 
@@ -17315,6 +17321,8 @@ snapshots:
       vue: 3.5.39(typescript@6.0.3)
     transitivePeerDependencies:
       - typescript
+
+  '@xterm/headless@6.0.0': {}
 
   '@yarnpkg/cli-dist@4.17.1': {}
 

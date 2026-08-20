@@ -310,18 +310,21 @@ function startStartupProfile(fixture: StartupFixture, args: readonly string[]) {
 }
 
 describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', () => {
-  it('requires --profile and rejects removed commands', async () => {
-    const bare = await runBuiltBin()
-    expect(bare.code).toBe(1)
-    expect(bare.stdout).toBe('')
-    expect(bare.stderr).toContain('--profile <name> is required')
+  it('defaults to the Hyperlake profile and rejects removed commands', async () => {
+    const defaultProfile = await runBuiltBin(['--dump-default-config'], {
+      SUPERHARNESS_HYPERLAKE_DISABLED: '1',
+    })
+    expect(defaultProfile.code).toBe(0)
+    expect(defaultProfile.stderr).toBe('')
+    expect(defaultProfile.stdout).toContain('superharness-adapter-hyperlake-pack')
+    expect(defaultProfile.stdout).toContain('superharness-hyperlake-mcp')
     const help = await runBuiltBin(['--help'])
     expect(help.code).toBe(0)
     expect(help.stdout).toContain('hyperlake-superharness web')
-    expect(help.stdout).toContain('@cerebrixos/hyperlake@0.2.1 auth login')
+    expect(help.stdout).toContain('@cerebrixos/hyperlake@latest auth login')
     expect(help.stdout).toContain('auth whoami')
     expect(help.stdout).toContain('never put')
-    expect(help.stdout).toContain('dsh plugin --profile')
+    expect(help.stdout).toContain('hyperlake-superharness plugin --profile')
     expect(help.stdout).not.toMatch(/^\s+(?:tui|meta|upgrade)\b/mu)
     for (const removed of [['tui'], ['--config', 'x.yml'], ['-p', 'task'], ['run', 'task']]) {
       const result = await runBuiltBin(removed)

@@ -170,7 +170,7 @@ export function DeepSeekOnboardingDialog(props: DeepSeekOnboardingDialogProps): 
       <label className={styles.providerField}>
         <span>{t('provider')}</span>
         <select
-          className={styles.providerSelect}
+          className={`${styles.providerSelect} ${styles.selectInput}`}
           value={selected.entry.provider}
           disabled={finishing}
           onChange={(event) => {

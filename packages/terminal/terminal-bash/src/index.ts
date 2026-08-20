@@ -87,7 +87,9 @@ function childEnvironment(spec: TerminalBackendSpawnSpec, dialect: ShellDialect)
  * input are unreliable under PSReadLine.
  */
 export const PWSH_PROMPT_SETUP =
-  "function prompt { [Console]::Write([char]27 + ']133;D;' + [int]$LASTEXITCODE + [char]7); '" + CONTROLLED_PROMPT + "' }"
+  "function prompt { [Console]::Write([char]27 + ']133;D;' + [int]$LASTEXITCODE + [char]7); '" + CONTROLLED_PROMPT + "' }; "
+  + "[Console]::WriteLine([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('X19EU0hfUFdTSF9SRUFEWV9f')))"
+const PWSH_READY_MARKER = '__DSH_PWSH_READY__'
 
 function spawnArgv(ctx: Context, config: ResolvedConfig, policy: SandboxExecutionPolicy): string[] {
   const argv = [config.shellPath, ...config.shellArgs]
@@ -113,32 +115,35 @@ async function startupSession(
       await session.initialize(signal)
       return
     }
-    // pwsh cannot install its prompt from the environment: write the prompt
-    // function through the session and wait for the first marker prompt,
-    // which is also the readiness contract of the bash initialize path. The
-    // first send also pins UTF-8 output (the shared pwsh-local preamble)
-    // before anything runs: the session decode path treats PTY bytes as
-    // UTF-8, and an un-pinned console writes its host code page for
-    // non-ASCII output. The banner-to-prompt gap can outlast the silence
-    // bound, so the wait loops over follow-up sends until the controlled
-    // prompt is actually visible (in the viewport or the retained scrollback
-    // when it landed between sends), bounded by the send deadline.
+    // pwsh cannot install its prompt from the environment. First wait for its
+    // native interactive prompt so the bootstrap cannot be lost during host
+    // initialization, then submit the prompt function and wait for a marker
+    // that only executed code can emit. The bootstrap also pins UTF-8 output:
+    // the session decode path treats PTY bytes as UTF-8, while an un-pinned
+    // console can write its host code page for non-ASCII output.
+    await session.initialize(signal)
+    let bootstrapSent = false
+    let markerSeen = false
     let viewport = ''
     for (;;) {
-      const first = viewport.length === 0
       const operation = session.startSend({
-        text: first ? ENCODING_PREAMBLE + PWSH_PROMPT_SETUP : '',
-        submit: first,
+        text: bootstrapSent ? '' : ENCODING_PREAMBLE + PWSH_PROMPT_SETUP,
+        submit: !bootstrapSent,
         ...signal !== undefined ? { signal } : {},
       })
+      bootstrapSent = true
       const result = await operation.done
       if (result.waitReason === 'session_exit') throw new Error('PTY shell exited during startup')
       if (result.waitReason === 'timeout') throw new Error('PTY shell did not reach readiness before startup timeout')
       viewport = result.viewport
       const scrollback = session.read({ offset: 0, count: 20 }).text
-      if (viewport.includes(CONTROLLED_PROMPT) || scrollback.includes(CONTROLLED_PROMPT)) break
+      markerSeen ||= viewport.includes(PWSH_READY_MARKER) || scrollback.includes(PWSH_READY_MARKER)
+      if (markerSeen && result.waitReason === 'stdin_read' && viewport.includes(CONTROLLED_PROMPT)) break
     }
     session.motd = viewport
+      .replaceAll(`${PWSH_READY_MARKER}\r\n`, '')
+      .replaceAll(`${PWSH_READY_MARKER}\n`, '')
+      .replaceAll(PWSH_READY_MARKER, '')
   }
   if (signal === undefined) {
     await start()

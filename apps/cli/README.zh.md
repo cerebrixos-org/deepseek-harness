@@ -32,7 +32,7 @@ HYPERLAKE_ACCESS_TOKEN="..."
 3. 使用 API 密钥保存持久 CLI 登录：
 
 ```sh
-npx @cerebrixos/hyperlake@0.2.1 auth login \
+npx @cerebrixos/hyperlake@0.2.4 auth login \
   --host https://your-hyperlake.example.com \
   --email you@example.com \
   --api-key "$HYPERLAKE_API_KEY"
@@ -41,7 +41,7 @@ npx @cerebrixos/hyperlake@0.2.1 auth login \
 或者保存 OAuth 访问令牌：
 
 ```sh
-npx @cerebrixos/hyperlake@0.2.1 auth login \
+npx @cerebrixos/hyperlake@0.2.4 auth login \
   --host https://your-hyperlake.example.com \
   --email you@example.com \
   --access-token "$HYPERLAKE_ACCESS_TOKEN"
@@ -52,7 +52,7 @@ npx @cerebrixos/hyperlake@0.2.1 auth login \
 4. 启动 Harness 前验证控制平面身份：
 
 ```sh
-npx @cerebrixos/hyperlake@0.2.1 auth whoami
+npx @cerebrixos/hyperlake@0.2.4 auth whoami
 ```
 
 5. 启动完整的本地体验：

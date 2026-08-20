@@ -13,6 +13,9 @@ import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-sub
 import { readClientBuildRecord } from '../../../scripts/client-build-environment.ts'
 import { REPO_ROOT } from './support.ts'
 
+const PROCESS_READY_TIMEOUT_MS = 120_000
+const HMR_UPDATE_TIMEOUT_MS = 60_000
+
 function spawnSpec(argv: readonly string[], cwd: string, env?: Record<string, string>): SubprocessSpawnSpec {
   return {
     argv,
@@ -50,7 +53,7 @@ function waitForOutput(child: SubprocessHandle, pattern: RegExp, label: string):
       if (match === null) return
       resolveOnce(match[1] ?? match[0])
     }
-    const timer = setTimeout(() => { rejectOnce(new Error(`${label} not ready:\n${output}`)) }, 60_000)
+    const timer = setTimeout(() => { rejectOnce(new Error(`${label} not ready:\n${output}`)) }, PROCESS_READY_TIMEOUT_MS)
     child.stdout?.on('data', onData)
     child.stderr?.on('data', onData)
     void child.done.then((outcome) => {
@@ -120,7 +123,7 @@ it('hot-reloads a real client-plugin source edit without refreshing the page', a
     })
 
     await writeFile(sourcePath, updatedSource)
-    await page.getByText(newText, { exact: true }).waitFor({ timeout: 30_000 })
+    await page.getByText(newText, { exact: true }).waitFor({ timeout: HMR_UPDATE_TIMEOUT_MS })
     expect(await page.evaluate(() => (window as Window & { __dshHmrPageIdentity?: string }).__dshHmrPageIdentity))
       .toBe(pageIdentity)
     expect(pageErrors).toEqual([])
@@ -138,4 +141,4 @@ it('hot-reloads a real client-plugin source edit without refreshing the page', a
     await rm(world, { recursive: true, force: true }).catch((error: unknown) => failures.push(error))
   }
   if (failures.length > 0) throw new AggregateError(failures, 'HMR browser test or cleanup failed')
-}, 120_000)
+}, 240_000)

@@ -3007,7 +3007,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CapabilityOutcome',
-    declaration: 'export interface CapabilityOutcome {\n    id: string;\n    name: string;\n    description: string;\n}',
+    declaration: 'export interface CapabilityOutcome {\n    id: string;\n    name: string;\n    description: string;\n    inputs?: CapabilityOutcomeInput[];\n    resourceSlotIds?: string[];\n    entrypoint?: CapabilityOutcomeEntrypoint;\n    approval?: \'none\' | \'required\';\n    evaluationAssetIds?: string[];\n}',
+  },
+  {
+    name: 'CapabilityOutcomeEntrypoint',
+    declaration: 'export interface CapabilityOutcomeEntrypoint {\n    kind: \'tool\' | \'workflow\';\n    reference: string;\n}',
+  },
+  {
+    name: 'CapabilityOutcomeInput',
+    declaration: 'export interface CapabilityOutcomeInput {\n    id: string;\n    name: string;\n    description: string;\n    required: boolean;\n}',
   },
   {
     name: 'CapabilityOutcomesSetRequest',
@@ -3823,11 +3831,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PackSelectionResult',
-    declaration: 'export interface PackSelectionResult extends PackOperationResult {\n    sessionId: string;\n    version?: string;\n}',
+    declaration: 'export interface PackSelectionResult extends PackOperationResult {\n    sessionId: string;\n    version?: string;\n    outcomeId?: string;\n}',
   },
   {
     name: 'PackSelectRequest',
-    declaration: 'export interface PackSelectRequest {\n    sessionId: string;\n    packId: string;\n}',
+    declaration: 'export interface PackSelectRequest {\n    sessionId: string;\n    packId: string;\n    outcomeId?: string;\n}',
   },
   {
     name: 'PackSetEnabledRequest',

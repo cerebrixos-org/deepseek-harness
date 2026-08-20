@@ -31,7 +31,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/hyperlake/packs/src/index.ts:115`](../packages/hyperlake/packs/src/index.ts)
+Source: [`packages/hyperlake/packs/src/index.ts:123`](../packages/hyperlake/packs/src/index.ts)
 
 <a id="deepseek-aidsh-acp"></a>
 
@@ -2696,7 +2696,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/shell/tool-pwsh-persistent/src/index.ts:472`](../packages/shell/tool-pwsh-persistent/src/index.ts)
+Source: [`packages/shell/tool-pwsh-persistent/src/index.ts:457`](../packages/shell/tool-pwsh-persistent/src/index.ts)
 
 <a id="deepseek-aidsh-tool-ralph"></a>
 
