@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
+import type { CapabilityLibraryInjected } from '../src/client/CapabilityLibrary.tsx'
 
 describe('Capability Library client plugin', () => {
   it('mounts its owned Remote contribution and registers its UI surfaces', async () => {
@@ -13,7 +14,7 @@ describe('Capability Library client plugin', () => {
       remote: { $mount: mount, hyperlakePacks: {} },
       slots: { inject: injectSlot, register: vi.fn() },
     }
-    ctx.inject = vi.fn((_deps, callback) => {
+    ctx.inject = vi.fn((_deps: readonly string[], callback: (scope: typeof ctx) => void) => {
       callback(ctx)
       return Object.assign(Promise.resolve(), { dispose: disposeFiber })
     })
@@ -39,20 +40,20 @@ describe('Capability Library client plugin', () => {
         return namespace
       },
     })
-    const register = vi.fn()
-    const injectSlot = vi.fn()
-    const ctx = {
+    const register = vi.fn((_registration: { inject: () => CapabilityLibraryInjected }): void => undefined)
+    const injectSlot = vi.fn((_name: string, _register: () => void): void => undefined)
+    const ctx: Record<string, unknown> = {
       effect: vi.fn(),
       locale: { register: vi.fn(), bind: vi.fn(() => vi.fn((key: string) => key)) },
       remote,
       slots: { inject: injectSlot, register },
-      inject: vi.fn((_deps, callback) => {
-        injected = true
-        callback(ctx)
-        injected = false
-        return Object.assign(Promise.resolve(), { dispose: vi.fn(async () => {}) })
-      }),
     }
+    ctx.inject = vi.fn((_deps: readonly string[], callback: (scope: typeof ctx) => void) => {
+      injected = true
+      callback(ctx)
+      injected = false
+      return Object.assign(Promise.resolve(), { dispose: vi.fn(async () => {}) })
+    })
 
     await apply(ctx as never)
     injectSlot.mock.calls[0]![1]()
