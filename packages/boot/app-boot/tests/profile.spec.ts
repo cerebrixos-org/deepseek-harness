@@ -167,10 +167,13 @@ describe('loadProfile', () => {
       .toEqual([...PROFILE_TEMPLATES.web ?? []])
   })
 
-  it('normalizes only the exact installation-owned headless bundle tuple', () => {
+  it('normalizes only exact installation-owned profile bundle tuples', () => {
     const anchor = stageInstallation({
       '@deepseek-ai/dsh-base': { patch: '[]\n' },
+      '@deepseek-ai/dsh-web-app': { patch: '[]\n' },
       '@cerebrixos/superharness-web-app': { patch: '[]\n' },
+      '@cerebrixos/superharness-base': { patch: '[]\n' },
+      '@cerebrixos/superharness-adapter-hyperlake': { patch: '[]\n' },
       '@deepseek-ai/dsh-headless': { patch: '[]\n' },
       'custom-bundle': { patch: '[]\n' },
     })
@@ -192,6 +195,26 @@ describe('loadProfile', () => {
     expect(readProfileManifest('t', custom).dsh?.profile?.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@cerebrixos/superharness-web-app', '@deepseek-ai/dsh-headless', 'custom-bundle',
     ])
+
+    const hyperlakeHome = tmp()
+    const hyperlake = resolveProfileDir('hyperlake', hyperlakeHome)
+    const legacyHyperlakeBundles = [
+      '@deepseek-ai/dsh-base',
+      '@deepseek-ai/dsh-web-app',
+      '@cerebrixos/superharness-base',
+      '@cerebrixos/superharness-adapter-hyperlake',
+    ]
+    initProfile(hyperlake, legacyHyperlakeBundles)
+    loadProfile('t', 'hyperlake', anchor, hyperlakeHome)
+    expect(readProfileManifest('t', hyperlake).dsh?.profile?.bundles)
+      .toEqual([...PROFILE_TEMPLATES.hyperlake ?? []])
+
+    const customHyperlakeHome = tmp()
+    const customHyperlake = resolveProfileDir('hyperlake', customHyperlakeHome)
+    initProfile(customHyperlake, [...legacyHyperlakeBundles, 'custom-bundle'])
+    loadProfile('t', 'hyperlake', anchor, customHyperlakeHome)
+    expect(readProfileManifest('t', customHyperlake).dsh?.profile?.bundles)
+      .toEqual([...legacyHyperlakeBundles, 'custom-bundle'])
   })
 
   it('fails loud when a listed bundle declares no dsh.bundle', () => {
