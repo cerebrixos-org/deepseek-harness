@@ -12,6 +12,13 @@ import { COVERAGE_PARTITION_MODE_ENV } from './scripts/coverage-partitions.ts'
 // threshold ERRORs name only the file. Absolute path because istanbul-reports
 // require()s custom reporters (which is also why the reporter is CJS).
 const uncoveredLocationsReporter = fileURLToPath(new URL('./scripts/coverage-uncovered-locations.cjs', import.meta.url))
+const hyperlakePacksRemoteFixture = fileURLToPath(new URL(
+  './packages/hyperlake/ui-capability-library/tests/fixtures/packs-remote.ts',
+  import.meta.url,
+))
+const sourceTestAliases = [
+  { find: '@cerebrixos/superharness-packs/remote', replacement: hyperlakePacksRemoteFixture },
+]
 
 // Resolution facade shared by every plugin instance below: tsconfig.base.json
 // has no include, which vite-tsconfig-paths treats as match-all, so its paths
@@ -127,6 +134,12 @@ const processBoundTests = [
 
 export default defineConfig({
   plugins: [pathsPlugin(), standardDecoratorPlugin()],
+  // Generated Typert Remote bundles do not exist in a clean source checkout.
+  // Client lifecycle tests need only the contribution identity; release gates
+  // separately generate and validate the complete descriptor payload.
+  resolve: {
+    alias: sourceTestAliases,
+  },
   test: {
     setupFiles: ['./scripts/test-invariants.ts'],
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
@@ -137,6 +150,7 @@ export default defineConfig({
     projects: [
       {
         plugins: [pathsPlugin(), standardDecoratorPlugin()],
+        resolve: { alias: sourceTestAliases },
         test: {
           name: 'thread-safe',
           execArgv: vitestExecArgv,
@@ -155,6 +169,7 @@ export default defineConfig({
       },
       {
         plugins: [pathsPlugin(), standardDecoratorPlugin()],
+        resolve: { alias: sourceTestAliases },
         test: {
           name: 'process-bound',
           execArgv: vitestExecArgv,
