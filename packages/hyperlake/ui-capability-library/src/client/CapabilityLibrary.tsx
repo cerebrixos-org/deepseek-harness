@@ -37,7 +37,7 @@ interface CapabilityLibraryViewProps extends CapabilityLibraryInjected, PropsLoc
   useSessions: CapabilityLibraryProps['useSessions']
   surface?: 'settings' | 'home'
 }
-type ViewState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; snapshot: PackCatalogSnapshot }
+type ViewState = { status: 'loading' } | { status: 'error'; code?: string } | { status: 'ready'; snapshot: PackCatalogSnapshot }
 type DetailTab = 'overview' | 'outcomes' | 'resources' | 'tools' | 'assets' | 'workflows' | 'evaluations' | 'access' | 'advanced'
 type BindingDraft = Record<string, { resourceType: string; resourceId: string }>
 
@@ -50,6 +50,16 @@ function bindingsFor(entry: PackCatalogEntry): BindingDraft {
 
 function slug(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 96)
+}
+
+function safeFailureCode(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined
+  return /^hyperlakePacks request failed: ([a-z0-9-]+)$/.exec(error.message)?.[1]
+}
+
+function failureState(error: unknown): ViewState {
+  const code = safeFailureCode(error)
+  return code === undefined ? { status: 'error' } : { status: 'error', code }
 }
 
 export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode {
@@ -74,7 +84,7 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
       const snapshot = await catalog()
       setState({ status: 'ready', snapshot })
       setDrafts(Object.fromEntries(snapshot.entries.map(entry => [entry.id, bindingsFor(entry)])))
-    } catch { setState({ status: 'error' }) }
+    } catch (error) { setState(failureState(error)) }
   }
   useEffect(() => { void load() }, [catalog])
 
@@ -111,7 +121,7 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
 
   return <div className={css.section} data-surface={surface} aria-busy={state.status === 'loading'}>
     {state.status === 'loading' ? <p className={css.message}>{t('loading')}</p> : null}
-    {state.status === 'error' ? <div className={css.failure}><p role="alert">{t('error')}</p><button type="button" onClick={() => { void load() }}>{t('retry')}</button></div> : null}
+    {state.status === 'error' ? <div className={css.failure}><p role="alert">{t('error')}{state.code ? ` (${state.code})` : ''}</p><button type="button" onClick={() => { void load() }}>{t('retry')}</button></div> : null}
     {snapshot ? <div className={css.library}>
       <div className={css.heading}><h3>{surface === 'home' ? t('homeLibrary') : t('library')}</h3><span>{entries.length}</span>{surface === 'settings' ? <button type="button" className={css.headingAction} onClick={() => { setCreating(value => !value) }}>{creating ? t('cancel') : t('newCapability')}</button> : null}</div>
       {surface === 'settings' && creating ? <CapabilityCreator busy={busy === 'create'} {...notice.create === undefined ? {} : { notice: notice.create }} t={t} onCreate={async (request) => {
@@ -370,7 +380,7 @@ export function PluginCatalog({ catalog, installPlugin, removePlugin, t }: Capab
   const [notice, setNotice] = useState('')
   const [removing, setRemoving] = useState('')
   const load = async (): Promise<void> => {
-    try { setState({ status: 'ready', snapshot: await catalog() }) } catch { setState({ status: 'error' }) }
+    try { setState({ status: 'ready', snapshot: await catalog() }) } catch (error) { setState(failureState(error)) }
   }
   useEffect(() => { void load() }, [catalog])
   const install = async (): Promise<void> => {
@@ -386,7 +396,7 @@ export function PluginCatalog({ catalog, installPlugin, removePlugin, t }: Capab
     try { const result = await removePlugin({ packageName, confirmed: true }); setNotice(result.message); if (result.ok) await load() } catch (error) { setNotice(error instanceof Error ? error.message : String(error)) } finally { setBusy(false); setRemoving('') }
   }
   if (state.status === 'loading') return <p className={css.message}>{t('loading')}</p>
-  if (state.status === 'error') return <div className={css.failure}><p role="alert">{t('error')}</p><button type="button" onClick={() => { void load() }}>{t('retry')}</button></div>
+  if (state.status === 'error') return <div className={css.failure}><p role="alert">{t('error')}{state.code ? ` (${state.code})` : ''}</p><button type="button" onClick={() => { void load() }}>{t('retry')}</button></div>
   const snapshot = state.snapshot
   const assets = snapshot.entries.flatMap(entry => entry.assets.filter(asset => asset.type !== 'evaluation').map(asset => ({ entry, asset })))
   const evaluations = snapshot.entries.flatMap(entry => entry.assets.filter(asset => asset.type === 'evaluation').map(asset => ({ entry, asset })))

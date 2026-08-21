@@ -30,53 +30,54 @@ export const inject = ['slots', 'locale', 'remote']
 /** Register the lazy Capability Library tab. */
 export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   const disposeRemote = await ctx.remote.$mount(hyperlakePacksRemote)
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'superharness-capability-library: dictionaries')
-  const t = ctx.locale.bind(NS)
-  const unwrap = async <T>(request: Promise<{ ok: true; value: T } | { ok: false; error: { code: string } }>): Promise<T> => {
-    const result = await request
-    if (!result.ok) throw new Error(`hyperlakePacks request failed: ${result.error.code}`)
-    return result.value
+  const uiFiber = ctx.inject(['remote.hyperlakePacks'], (scope: ClientContext) => {
+    const packs = scope.remote.hyperlakePacks
+    scope.effect(() => scope.locale.register(NS, { zh, en }), 'superharness-capability-library: dictionaries')
+    const t = scope.locale.bind(NS)
+    const unwrap = async <T>(request: Promise<{ ok: true; value: T } | { ok: false; error: { code: string } }>): Promise<T> => {
+      const result = await request
+      if (!result.ok) throw new Error(`hyperlakePacks request failed: ${result.error.code}`)
+      return result.value
+    }
+    const injected: CapabilityLibraryInjected = {
+      catalog: () => unwrap(packs.catalog()),
+      setEnabled: (request: PackSetEnabledRequest) => unwrap(packs.setEnabled(request)),
+      configure: (request: PackConfigureRequest) => unwrap(packs.configure(request)),
+      select: (request: PackSelectRequest) => unwrap(packs.select(request)),
+      createCapability: (request: CapabilityCreateRequest) => unwrap(packs.createCapability(request)),
+      deleteCapability: (request: CapabilityDeleteRequest) => unwrap(packs.deleteCapability(request)),
+      upsertAttachment: (request: CapabilityAttachmentUpsertRequest) => unwrap(packs.upsertAttachment(request)),
+      removeAttachment: (request: CapabilityAttachmentRemoveRequest) => unwrap(packs.removeAttachment(request)),
+      setOutcomes: (request: CapabilityOutcomesSetRequest) => unwrap(packs.setOutcomes(request)),
+      attachAsset: (request: CapabilityAssetAttachRequest) => unwrap(packs.attachAsset(request)),
+      removeAsset: (request: CapabilityAssetRemoveRequest) => unwrap(packs.removeAsset(request)),
+      upsertResource: (request: CapabilityResourceUpsertRequest) => unwrap(packs.upsertResource(request)),
+      removeResource: (request: CapabilityResourceRemoveRequest) => unwrap(packs.removeResource(request)),
+      discoverResources: (request: PluginResourceDiscoverRequest) => unwrap(packs.discoverResources(request)),
+      installPlugin: (request: PluginInstallRequest) => unwrap(packs.installPlugin(request)),
+      removePlugin: (request: PluginRemoveRequest) => unwrap(packs.removePlugin(request)),
+    }
+    scope.slots.inject('settings.section', () => scope.slots.register({
+      name: 'settings.section', id: 'capabilities', order: -100, label: () => t('tab'), locale: NS,
+      inject: (): CapabilityLibraryInjected => injected,
+    }, CapabilityLibrary))
+    scope.slots.inject('conversation.hero.capabilities', () => scope.slots.register({
+      name: 'conversation.hero.capabilities', id: 'hyperlake-capability-packs', order: 10, locale: NS,
+      inject: (): CapabilityLibraryInjected => injected,
+    }, CapabilityHome))
+    scope.slots.inject('settings.plugins.tab', () => scope.slots.register({
+      name: 'settings.plugins.tab', id: 'hyperlake-contributions', order: -100, label: () => t('tab'), locale: NS,
+      inject: (): CapabilityLibraryInjected => injected,
+    }, PluginCatalog))
+  })
+  try {
+    await uiFiber
+  } catch (error) {
+    await disposeRemote()
+    throw error
   }
-  const injected: CapabilityLibraryInjected = {
-    catalog: () => unwrap(ctx.remote.hyperlakePacks.catalog()),
-    setEnabled: (request: PackSetEnabledRequest) => unwrap(ctx.remote.hyperlakePacks.setEnabled(request)),
-    configure: (request: PackConfigureRequest) => unwrap(ctx.remote.hyperlakePacks.configure(request)),
-    select: (request: PackSelectRequest) => unwrap(ctx.remote.hyperlakePacks.select(request)),
-    createCapability: (request: CapabilityCreateRequest) => unwrap(ctx.remote.hyperlakePacks.createCapability(request)),
-    deleteCapability: (request: CapabilityDeleteRequest) => unwrap(ctx.remote.hyperlakePacks.deleteCapability(request)),
-    upsertAttachment: (request: CapabilityAttachmentUpsertRequest) => unwrap(ctx.remote.hyperlakePacks.upsertAttachment(request)),
-    removeAttachment: (request: CapabilityAttachmentRemoveRequest) => unwrap(ctx.remote.hyperlakePacks.removeAttachment(request)),
-    setOutcomes: (request: CapabilityOutcomesSetRequest) => unwrap(ctx.remote.hyperlakePacks.setOutcomes(request)),
-    attachAsset: (request: CapabilityAssetAttachRequest) => unwrap(ctx.remote.hyperlakePacks.attachAsset(request)),
-    removeAsset: (request: CapabilityAssetRemoveRequest) => unwrap(ctx.remote.hyperlakePacks.removeAsset(request)),
-    upsertResource: (request: CapabilityResourceUpsertRequest) => unwrap(ctx.remote.hyperlakePacks.upsertResource(request)),
-    removeResource: (request: CapabilityResourceRemoveRequest) => unwrap(ctx.remote.hyperlakePacks.removeResource(request)),
-    discoverResources: (request: PluginResourceDiscoverRequest) => unwrap(ctx.remote.hyperlakePacks.discoverResources(request)),
-    installPlugin: (request: PluginInstallRequest) => unwrap(ctx.remote.hyperlakePacks.installPlugin(request)),
-    removePlugin: (request: PluginRemoveRequest) => unwrap(ctx.remote.hyperlakePacks.removePlugin(request)),
+  return async () => {
+    await uiFiber.dispose()
+    await disposeRemote()
   }
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
-    id: 'capabilities',
-    order: -100,
-    label: () => t('tab'),
-    locale: NS,
-    inject: (): CapabilityLibraryInjected => injected,
-  }, CapabilityLibrary))
-  ctx.slots.inject('conversation.hero.capabilities', () => ctx.slots.register({
-    name: 'conversation.hero.capabilities',
-    id: 'hyperlake-capability-packs',
-    order: 10,
-    locale: NS,
-    inject: (): CapabilityLibraryInjected => injected,
-  }, CapabilityHome))
-  ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
-    name: 'settings.plugins.tab',
-    id: 'hyperlake-contributions',
-    order: -100,
-    label: () => t('tab'),
-    locale: NS,
-    inject: (): CapabilityLibraryInjected => injected,
-  }, PluginCatalog))
-  return disposeRemote
 }
