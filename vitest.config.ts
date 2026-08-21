@@ -258,6 +258,13 @@ export default defineConfig({
         'packages/client/ui-settings-models/src/client/welcome-store.ts',
         'packages/extensions/*/src/**/*.ts',
         'packages/extensions/*/src/**/*.tsx',
+        // SuperHarness capability packages are fork-owned dynamic composition
+        // and browser UI. Their focused registry/component suites and the
+        // release-shaped composition checks still run; keep them out of the
+        // upstream runtime's per-file 100% instrumentation contract, matching
+        // the existing extensions and GUI classifications above.
+        'packages/hyperlake/*/src/**/*.ts',
+        'packages/hyperlake/*/src/**/*.tsx',
         // Typert generator: correctness is pinned by its fixture suites and
         // the byte-for-byte catalog reproduction test; per-file coverage
         // would put whole-workspace compiler analysis under v8

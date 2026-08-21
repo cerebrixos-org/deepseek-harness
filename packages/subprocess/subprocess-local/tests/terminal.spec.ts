@@ -207,6 +207,20 @@ describe('LocalTerminalHandle', () => {
     expect(Buffer.concat(chunks).toString('utf8')).toBe('before\x1b[6nafter\x1b[6n')
   })
 
+  it('leaves unsupported terminal status queries unanswered', async () => {
+    const pty = new FakePty()
+    const handle = makeHandle(pty, new FakeInspector(), 10)
+    const chunks: Buffer[] = []
+    handle.output.on('data', (chunk: Buffer) => { chunks.push(chunk) })
+
+    pty.emitData('before\x1b[5nafter')
+
+    await vi.waitFor(() => {
+      expect(Buffer.concat(chunks).toString('utf8')).toBe('before\x1b[5nafter')
+    })
+    expect(pty.writes).toEqual([])
+  })
+
   it('rejects unsafe foreground signals and writes after exit', async () => {
     const pty = new FakePty()
     const inspector = new FakeInspector()
