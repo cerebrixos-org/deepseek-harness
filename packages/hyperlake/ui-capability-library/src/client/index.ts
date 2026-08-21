@@ -11,6 +11,7 @@ import type {
   PackConfigureRequest, PackSelectRequest, PackSetEnabledRequest, PluginInstallRequest,
   PluginRemoveRequest, PluginResourceDiscoverRequest,
 } from '@cerebrixos/superharness-packs/types'
+import hyperlakePacksRemote from '@cerebrixos/superharness-packs/remote'
 import { CapabilityHome, CapabilityLibrary, PluginCatalog, type CapabilityLibraryInjected } from './CapabilityLibrary.tsx'
 import { en, zh, type CapabilityLibraryLocaleKey } from './locales.ts'
 
@@ -24,10 +25,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'settings.capabilityLibrary'
 /** Services required by the Settings contribution and inventory Remote. */
-export const inject = ['slots', 'locale', 'remote', 'remote.hyperlakePacks']
+export const inject = ['slots', 'locale', 'remote']
 
 /** Register the lazy Capability Library tab. */
-export function apply(ctx: ClientContext): void {
+export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
+  const disposeRemote = await ctx.remote.$mount(hyperlakePacksRemote)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'superharness-capability-library: dictionaries')
   const t = ctx.locale.bind(NS)
   const unwrap = async <T>(request: Promise<{ ok: true; value: T } | { ok: false; error: { code: string } }>): Promise<T> => {
@@ -76,4 +78,5 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: (): CapabilityLibraryInjected => injected,
   }, PluginCatalog))
+  return disposeRemote
 }

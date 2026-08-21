@@ -3053,7 +3053,7 @@ export interface WebRuntimeConfig {
 
 <a id="deepseek-aidsh-web-app"></a>
 
-## `@deepseek-ai/dsh-web-app`
+## `@cerebrixos/superharness-web-app`
 
 需要：`webServer`
 

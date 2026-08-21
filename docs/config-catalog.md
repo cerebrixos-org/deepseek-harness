@@ -3051,7 +3051,7 @@ Source: [`packages/web/web/src/index.ts:55`](../packages/web/web/src/index.ts)
 
 <a id="deepseek-aidsh-web-app"></a>
 
-## `@deepseek-ai/dsh-web-app`
+## `@cerebrixos/superharness-web-app`
 
 Requires: `webServer`
 

@@ -8,7 +8,7 @@ import {
 import { en, type CapabilityLibraryLocaleKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
-const t = (key: CapabilityLibraryLocaleKey): string => en[key]
+const t: CapabilityLibraryProps['t'] = key => en[key as CapabilityLibraryLocaleKey] ?? String(key)
 
 const SNAPSHOT: PackCatalogSnapshot = {
   availableTools: [{ name: 'query_data', description: 'Query governed data.', core: false }],
