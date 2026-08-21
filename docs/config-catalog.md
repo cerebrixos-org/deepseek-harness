@@ -3213,7 +3213,7 @@ Source: [`packages/workflow/workflow-worker-thread/src/index.ts:32`](../packages
 These load from a `cordis.yml` entry with no `config:` block; they declare no configuration API.
 
 - `@cerebrixos/superharness-adapter-databricks` — requires `hyperlakePacks` ([`packages/hyperlake/adapter-databricks/src/index.ts`](../packages/hyperlake/adapter-databricks/src/index.ts))
-- `@cerebrixos/superharness-adapter-hyperlake` — requires `hyperlakePacks` ([`packages/hyperlake/adapter-hyperlake/src/index.ts`](../packages/hyperlake/adapter-hyperlake/src/index.ts))
+- `@cerebrixos/superharness-adapter-hyperlake` — requires `hyperlakePacks` · `tools` ([`packages/hyperlake/adapter-hyperlake/src/index.ts`](../packages/hyperlake/adapter-hyperlake/src/index.ts))
 - `@cerebrixos/superharness-pack-data-engineering` — requires `hyperlakePacks` ([`packages/hyperlake/pack-data-engineering/src/index.ts`](../packages/hyperlake/pack-data-engineering/src/index.ts))
 - `@cerebrixos/superharness-solution-life-sciences` — requires `hyperlakePacks` ([`packages/hyperlake/solution-life-sciences/src/index.ts`](../packages/hyperlake/solution-life-sciences/src/index.ts))
 - `@cerebrixos/superharness-ui-capability-library` ([`packages/hyperlake/ui-capability-library/src/index.ts`](../packages/hyperlake/ui-capability-library/src/index.ts))

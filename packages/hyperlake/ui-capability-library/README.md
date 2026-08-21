@@ -6,6 +6,10 @@ First-party Plugins and Capability Library for the SuperHarness web interface. P
 
 Core Harness tools are available everywhere. Installed plugins supply optional tools, resource providers, knowledge, workflows, evaluations, and outcomes. The capability view separates Overview, Outcomes, Resources, Tools, Knowledge & Assets, Workflows, Evaluations, Access, and Advanced configuration. Users bind each outcome to its expected inputs, resources, entry point, approval, and evaluations, then assign optional tools globally or to selected outcomes. A dbt, Prefect, or customer plugin follows this same local bundle contract; Hyperlake CLI/MCP remains the built-in governed adapter. Private credentials remain in npm configuration, an SSH agent, or the provider's own secure configuration. A restart activates package changes; no Rails service or duplicate Host API is involved.
 
+Any number of capabilities may be configured and ready at once. A new conversation chooses one ready capability and outcome from the composer before its first message; that choice is durable and cannot silently change after work begins. An active conversation therefore has one explicit operating context, while other configured capabilities remain available to other conversations.
+
+Resource setup is slot-led. For each required or optional slot, the UI shows only compatible installed providers, discovers resources the provider already authorizes, and attaches and binds the selected opaque resource in one action. The free-form resource editor remains only for additional context supplied by plugins that cannot discover resources. The UI also distinguishes universal core tools, non-removable shared tools supplied by the built-in Hyperlake adapter, capability-scoped tools, and installed tools that are not managed by a capability.
+
 ## Model Experience
 
 ### Capability Library UI

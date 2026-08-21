@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PackCatalogSnapshot } from '@cerebrixos/superharness-packs/types'
 import {
-  CapabilityHome, CapabilityLibrary, PluginCatalog, type CapabilityHomeProps, type CapabilityLibraryInjected, type CapabilityLibraryProps,
+  CapabilityChooser, CapabilityHome, CapabilityLibrary, PluginCatalog, type CapabilityChooserProps, type CapabilityHomeProps,
+  type CapabilityLibraryInjected, type CapabilityLibraryProps,
 } from '../src/client/CapabilityLibrary.tsx'
 import { en } from '../src/client/locales.ts'
 
@@ -39,6 +40,7 @@ function props(overrides: Partial<CapabilityLibraryInjected> = {}): CapabilityLi
     setEnabled: vi.fn().mockResolvedValue({ ok: true, packId: 'life-sciences-research' }),
     configure: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
     select: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering', sessionId: 'session-1' }),
+    selection: vi.fn().mockResolvedValue({ sessionId: 'session-1', selected: false }),
     createCapability: vi.fn().mockResolvedValue({ ok: true, packId: 'custom' }),
     deleteCapability: vi.fn().mockResolvedValue({ ok: true, packId: 'custom' }),
     upsertAttachment: vi.fn().mockResolvedValue({ ok: true, packId: 'data-engineering' }),
@@ -140,6 +142,67 @@ describe('CapabilityLibrary', () => {
     expect(request?.attachment).toMatchObject({
       scope: 'capability', capabilityId: 'data-engineering', name: 'Governed query', toolNames: ['query_data'],
     })
+  })
+
+  it('discovers, attaches, and binds a compatible resource in one setup action', async () => {
+    const setupSnapshot: PackCatalogSnapshot = {
+      ...SNAPSHOT,
+      resourceProviders: [{ id: 'hyperlake-clusters', pluginId: 'hyperlake', name: 'Hyperlake clusters', description: 'Authorized clusters.', resourceTypes: ['governed-data-environment'] }],
+      entries: SNAPSHOT.entries.map(entry => entry.id === 'data-engineering' ? { ...entry, ready: false, bindings: [], resources: [], issues: ['required resource slot "data-environment" is not bound'] } : entry),
+    }
+    const upsertResource = vi.fn<CapabilityLibraryInjected['upsertResource']>().mockResolvedValue({ ok: true, packId: 'data-engineering' })
+    const configure = vi.fn<CapabilityLibraryInjected['configure']>().mockResolvedValue({ ok: true, packId: 'data-engineering' })
+    const discoverResources = vi.fn<CapabilityLibraryInjected['discoverResources']>().mockResolvedValue([{ id: 'cluster-1', type: 'governed-data-environment', name: 'Production', description: 'Production cluster.', providerId: 'hyperlake-clusters' }])
+    render(<CapabilityLibrary {...props({
+      catalog: vi.fn().mockResolvedValue(setupSnapshot), upsertResource, configure, discoverResources,
+    })} />)
+    await screen.findByRole('button', { name: /Data Engineering/ })
+    fireEvent.click(screen.getByRole('tab', { name: 'Resources' }))
+    const slot = screen.getByRole('group', { name: /data-environment/ })
+    fireEvent.click(within(slot).getByRole('button', { name: 'Discover authorized resources' }))
+    await within(slot).findByRole('option', { name: 'Production' })
+    fireEvent.change(within(slot).getByLabelText('Resource'), { target: { value: 'cluster-1' } })
+    fireEvent.click(within(slot).getByRole('button', { name: 'Use this resource' }))
+    await waitFor(() => {
+      expect(configure).toHaveBeenCalledWith({
+        packId: 'data-engineering',
+        bindings: [{ slotId: 'data-environment', resourceType: 'governed-data-environment', resourceId: 'cluster-1' }],
+      })
+    })
+    expect(upsertResource.mock.calls[0]?.[0].resource.providerId).toBe('hyperlake-clusters')
+    expect(upsertResource.mock.calls[0]?.[0].resource.resourceId).toBe('cluster-1')
+  })
+
+  it('turns a contained provider failure into actionable discovery guidance', async () => {
+    const setupSnapshot: PackCatalogSnapshot = {
+      ...SNAPSHOT,
+      resourceProviders: [{ id: 'hyperlake-clusters', pluginId: 'hyperlake', name: 'Hyperlake clusters', description: 'Authorized clusters.', resourceTypes: ['governed-data-environment'] }],
+    }
+    const discoverResources = vi.fn<CapabilityLibraryInjected['discoverResources']>()
+      .mockRejectedValue(new Error('hyperlakePacks request failed: internal'))
+    render(<CapabilityLibrary {...props({ catalog: vi.fn().mockResolvedValue(setupSnapshot), discoverResources })} />)
+    await screen.findByRole('button', { name: /Data Engineering/ })
+    fireEvent.click(screen.getByRole('tab', { name: 'Resources' }))
+    const slot = screen.getByRole('group', { name: /data-environment/ })
+    fireEvent.click(within(slot).getByRole('button', { name: 'Discover authorized resources' }))
+    expect((await within(slot).findByRole('alert')).textContent).toBe(en.resourceDiscoveryFailed)
+    expect(within(slot).queryByText('hyperlakePacks request failed: internal')).toBeNull()
+  })
+
+  it('selects one ready capability outcome from the conversation composer', async () => {
+    const select = vi.fn<CapabilityLibraryInjected['select']>().mockResolvedValue({ ok: true, packId: 'data-engineering', sessionId: 'session-1', version: '1.0.0', outcomeId: 'data-modeling' })
+    const chooser = {
+      ...props({ select }),
+      session: { sessionId: 'session-1', blank: true },
+    } as unknown as CapabilityChooserProps
+    render(<CapabilityChooser {...chooser} />)
+    const control = await screen.findByLabelText('Capability')
+    fireEvent.change(control, { target: { value: 'data-engineering::data-modeling' } })
+    await waitFor(() => {
+      expect(select).toHaveBeenCalledWith({ sessionId: 'session-1', packId: 'data-engineering', outcomeId: 'data-modeling' })
+    })
+    expect(await screen.findByText('Active for this conversation')).toBeTruthy()
+    expect((control as HTMLSelectElement).disabled).toBe(true)
   })
 
   it('installs a confirmed npm or Git plugin through the profile lifecycle', async () => {

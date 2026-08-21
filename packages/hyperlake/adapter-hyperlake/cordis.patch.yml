@@ -1,9 +1,6 @@
 # Register this package in the pack catalog and connect the unchanged Hyperlake
 # CLI MCP server. Authentication remains in the existing CLI configuration.
 - insert:
-    - id: superharness-adapter-hyperlake-pack
-      name: '@cerebrixos/superharness-adapter-hyperlake'
-
     - id: superharness-hyperlake-mcp
       name: '@deepseek-ai/dsh-mcp-client'
       disabled: !!js process.env.SUPERHARNESS_HYPERLAKE_DISABLED === '1'
@@ -14,3 +11,6 @@
         args: !!js "process.env.SUPERHARNESS_HYPERLAKE_SCRIPT ? [process.env.SUPERHARNESS_HYPERLAKE_SCRIPT, 'mcp', 'serve', '--stdio'] : ['mcp', 'serve', '--stdio']"
         failOnStartupError: true
         toolCallTimeoutMs: 120000
+
+    - id: superharness-adapter-hyperlake-pack
+      name: '@cerebrixos/superharness-adapter-hyperlake'

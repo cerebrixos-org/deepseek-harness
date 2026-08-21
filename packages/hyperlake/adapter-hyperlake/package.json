@@ -24,6 +24,7 @@
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
   "hyperlake": { "pack": "./hyperlake-pack.yaml" },
   "dependencies": {
+    "@deepseek-ai/dsh-tools": "workspace:^",
     "@deepseek-ai/dsh-mcp-client": "workspace:^",
     "@cerebrixos/superharness-packs": "workspace:^"
   },

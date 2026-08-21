@@ -819,6 +819,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'A disposer that unregisters the pack.',
       },
       {
+        signature: 'registerInstallationAttachment(attachment: CapabilityProviderAttachment): () => void',
+        description: 'Register an installation-owned tool contribution for the calling plugin\'s lifetime.',
+        parameters: [{ name: 'attachment', description: 'Shared or capability-scoped tools supplied by the installation.' }],
+        returns: 'A disposer that unregisters the contribution.',
+      },
+      {
         signature: 'registerResourceProvider(provider: PluginResourceProvider): () => void',
         description: 'Register resource discovery owned by one installed plugin.',
         parameters: [{ name: 'provider', description: 'Installed plugin contribution that lists its authorized resources.' }],
@@ -937,6 +943,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Select a ready pack for a blank session and record immutable provenance.',
         parameters: [{ name: 'request', description: 'Target session and pack ids.' }],
         returns: 'Selection provenance or an actionable rejection.',
+      },
+      {
+        signature: '@Remote(\'selection\') selection(request: PackSelectionRequest): PackSessionSelection',
+        description: 'Read the immutable capability selection for one active session.',
+        parameters: [{ name: 'request', description: 'Target active session.' }],
+        returns: 'The selected capability or an explicit unselected result.',
       },
     ],
   },
@@ -3023,7 +3035,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CapabilityProviderAttachment',
-    declaration: 'export interface CapabilityProviderAttachment {\n    id: string;\n    name: string;\n    description: string;\n    providerId: string;\n    scope: \'shared\' | \'capability\';\n    capabilityId?: string;\n    execution: \'local\' | \'platform\';\n    outcomeIds: string[];\n    toolNames: string[];\n}',
+    declaration: 'export interface CapabilityProviderAttachment {\n    id: string;\n    name: string;\n    description: string;\n    providerId: string;\n    scope: \'shared\' | \'capability\';\n    capabilityId?: string;\n    execution: \'local\' | \'platform\';\n    outcomeIds: string[];\n    toolNames: string[];\n    removable?: boolean;\n}',
   },
   {
     name: 'CapabilityResourceAttachment',
@@ -3830,12 +3842,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PackResourceSlotView {\n    id: string;\n    types: string[];\n    required: boolean;\n    description: string;\n}',
   },
   {
+    name: 'PackSelectionRequest',
+    declaration: 'export interface PackSelectionRequest {\n    sessionId: string;\n}',
+  },
+  {
     name: 'PackSelectionResult',
     declaration: 'export interface PackSelectionResult extends PackOperationResult {\n    sessionId: string;\n    version?: string;\n    outcomeId?: string;\n}',
   },
   {
     name: 'PackSelectRequest',
     declaration: 'export interface PackSelectRequest {\n    sessionId: string;\n    packId: string;\n    outcomeId?: string;\n}',
+  },
+  {
+    name: 'PackSessionSelection',
+    declaration: 'export interface PackSessionSelection {\n    sessionId: string;\n    selected: boolean;\n    packId?: string;\n    version?: string;\n    outcomeId?: string;\n}',
   },
   {
     name: 'PackSetEnabledRequest',

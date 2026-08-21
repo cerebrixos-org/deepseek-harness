@@ -53,6 +53,8 @@ export interface CapabilityProviderAttachment {
   execution: 'local' | 'platform'
   outcomeIds: string[]
   toolNames: string[]
+  /** False for an installation-owned attachment that local users cannot remove. */
+  removable?: boolean
 }
 
 /** Immutable asset selected from an installed source plugin. */
@@ -163,6 +165,8 @@ export interface PackSetEnabledRequest { packId: string; enabled: boolean }
 export interface PackConfigureRequest { packId: string; bindings: PackResourceBinding[] }
 /** Request to select one ready pack before a session's first turn. */
 export interface PackSelectRequest { sessionId: string; packId: string; outcomeId?: string }
+/** Request the capability selection recorded for one active session. */
+export interface PackSelectionRequest { sessionId: string }
 /** Request to create a user-owned capability and its outcomes. */
 export interface CapabilityCreateRequest {
   id: string
@@ -212,6 +216,15 @@ export interface PluginOperationResult {
 /** Pack-selection result with target session provenance. */
 export interface PackSelectionResult extends PackOperationResult {
   sessionId: string
+  version?: string
+  outcomeId?: string
+}
+
+/** Current immutable capability selection for one active session. */
+export interface PackSessionSelection {
+  sessionId: string
+  selected: boolean
+  packId?: string
   version?: string
   outcomeId?: string
 }

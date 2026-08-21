@@ -24,7 +24,7 @@ import type {
   CapabilityDeleteRequest, CapabilityOutcome, CapabilityOutcomesSetRequest, CapabilityProviderAttachment,
   CapabilityResourceAttachment, CapabilityResourceRemoveRequest, CapabilityResourceUpsertRequest,
   InstalledPluginView, PackCatalogEntry, PackCatalogSnapshot, PackConfigureRequest, PackOperationResult,
-  PackSelectRequest, PackSelectionResult, PackSetEnabledRequest, PluginInstallRequest,
+  PackSelectRequest, PackSelectionRequest, PackSelectionResult, PackSessionSelection, PackSetEnabledRequest, PluginInstallRequest,
   PluginOperationResult, PluginRemoveRequest, PluginResourceDiscoverRequest, PluginResourceProviderView,
   PluginResourceView,
 } from './types.ts'
@@ -400,6 +400,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
   private readonly allowPluginManagement: boolean
   private readonly coreToolNames: Set<string>
   private readonly resourceProviders = new Map<string, PluginResourceProvider>()
+  private readonly installationAttachments = new Map<string, CapabilityProviderAttachment>()
   private restartRequired = false
   private state: PersistedPackState
 
@@ -461,6 +462,19 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
     this.packs.set(id, pack)
     this.defaults.set(id, options.defaultEnabled === true)
     return () => { this.packs.delete(id); this.defaults.delete(id) }
+  }
+
+  /**
+   * Register an installation-owned tool contribution for the calling plugin's lifetime.
+   * @param attachment - Shared or capability-scoped tools supplied by the installation.
+   * @returns A disposer that unregisters the contribution.
+   */
+  registerInstallationAttachment(attachment: CapabilityProviderAttachment): () => void {
+    const parsed = this.parseAttachment({ ...attachment, removable: false }, 'attachment')
+    if (this.installationAttachments.has(parsed.id)) throw new Error(`Installation attachment ${JSON.stringify(parsed.id)} is already registered`)
+    const owned = { ...parsed, removable: false }
+    this.installationAttachments.set(owned.id, owned)
+    return () => { this.installationAttachments.delete(owned.id) }
   }
 
   /**
@@ -849,7 +863,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
   }
 
   private effectiveAttachments(packId: string): CapabilityProviderAttachment[] {
-    return this.state.attachments
+    return [...this.installationAttachments.values(), ...this.state.attachments]
       .filter(attachment => attachment.scope === 'shared' || attachment.capabilityId === packId)
       .map(attachment => ({ ...attachment, outcomeIds: [...attachment.outcomeIds], toolNames: [...attachment.toolNames] }))
       .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id))
@@ -910,7 +924,9 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       coreTools: tools.filter(tool => tool.core),
       attachments: this.state.attachments.map(attachment => ({
         ...attachment, outcomeIds: [...attachment.outcomeIds], toolNames: [...attachment.toolNames],
-      })),
+      })).concat([...this.installationAttachments.values()].map(attachment => ({
+        ...attachment, outcomeIds: [...attachment.outcomeIds], toolNames: [...attachment.toolNames],
+      }))),
       resourceProviders: [...this.resourceProviders.values()].map(({ list: _list, ...provider }) => ({
         ...provider,
         resourceTypes: [...provider.resourceTypes],
@@ -1055,7 +1071,12 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
   @Remote('removeResource')
   removeResource(request: CapabilityResourceRemoveRequest): PackOperationResult {
     this.get(request.packId)
+    const resource = (this.state.resources[request.packId] ?? []).find(item => item.id === request.resourceId)
     this.state.resources[request.packId] = (this.state.resources[request.packId] ?? []).filter(item => item.id !== request.resourceId)
+    if (resource !== undefined) {
+      this.state.bindings[request.packId] = (this.state.bindings[request.packId] ?? [])
+        .filter(binding => binding.resourceId !== resource.resourceId)
+    }
     this.persist()
     return { ok: true, packId: request.packId, entry: this.entry(request.packId) }
   }
@@ -1230,7 +1251,10 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
         || attachment.outcomeIds.length === 0
         || attachment.outcomeIds.includes(selectedOutcome.id))
     const toolNames = [...new Set(attachments.flatMap(attachment => attachment.toolNames))].sort()
-    const managedToolNames = [...new Set(this.state.attachments.flatMap(attachment => attachment.toolNames))].sort()
+    const managedToolNames = [...new Set([
+      ...this.state.attachments.flatMap(attachment => attachment.toolNames),
+      ...[...this.installationAttachments.values()].flatMap(attachment => attachment.toolNames),
+    ])].sort()
     agent.session.append('superharness/pack-selected', {
       packId: request.packId,
       version: pack.manifest.metadata.version,
@@ -1249,6 +1273,27 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       ok: true, packId: request.packId, sessionId: request.sessionId,
       version: pack.manifest.metadata.version,
       ...(selectedOutcome === undefined ? {} : { outcomeId: selectedOutcome.id }),
+    }
+  }
+
+  /**
+   * Read the immutable capability selection for one active session.
+   * @param request - Target active session.
+   * @returns The selected capability or an explicit unselected result.
+   */
+  @Remote('selection')
+  selection(request: PackSelectionRequest): PackSessionSelection {
+    const agent = this.ctx.agents.get(request.sessionId as SessionId)
+    const selected = agent?.session.events.findLast(event => event.type === 'superharness/pack-selected')
+    if (selected?.type !== 'superharness/pack-selected') {
+      return { sessionId: request.sessionId, selected: false }
+    }
+    return {
+      sessionId: request.sessionId,
+      selected: true,
+      packId: selected.data.packId,
+      version: selected.data.version,
+      ...(selected.data.outcomeId === undefined ? {} : { outcomeId: selected.data.outcomeId }),
     }
   }
 

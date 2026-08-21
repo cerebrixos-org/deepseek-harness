@@ -145,6 +145,9 @@ describe('SuperHarness pack registry', () => {
     expect(ctx.hyperlakePacks.select({ sessionId: 'session-pack', packId: 'data-engineering' })).toMatchObject({
       ok: true, version: '1.0.0',
     })
+    expect(ctx.hyperlakePacks.selection({ sessionId: 'session-pack' })).toEqual({
+      sessionId: 'session-pack', selected: true, packId: 'data-engineering', version: '1.0.0',
+    })
     expect(session.events.at(-1)).toMatchObject({
       type: 'superharness/pack-selected',
       data: { packId: 'data-engineering', version: '1.0.0', bindings: [{ resourceId: 'cluster-123' }] },
@@ -180,6 +183,19 @@ describe('SuperHarness pack registry', () => {
       valid: false,
       issues: ['resource slot "analytical-engine" does not accept type "sharepoint-site"'],
     })
+  })
+
+  it('projects installation-owned tool attachments as non-removable', async () => {
+    const ctx = await harness()
+    const dispose = ctx.hyperlakePacks.registerInstallationAttachment({
+      id: 'platform-tools', name: 'Platform tools', description: 'First-party tools.', providerId: 'platform',
+      scope: 'shared', execution: 'local', outcomeIds: [], toolNames: ['platform_query'],
+    })
+    expect(ctx.hyperlakePacks.catalog().attachments).toContainEqual(expect.objectContaining({
+      id: 'platform-tools', removable: false, toolNames: ['platform_query'],
+    }))
+    dispose()
+    expect(ctx.hyperlakePacks.catalog().attachments).toEqual([])
   })
 
   it('starts exported goals and routines through the native goal tool with bounded authority', async () => {
@@ -400,6 +416,15 @@ describe('SuperHarness pack registry', () => {
       resources: [{ resourceId: 'cluster-1', providerId: 'fixture-resources' }],
       assets: [{ id: 'data-engineering.sql-safety-evaluation', type: 'evaluation', sourcePackId: 'data-engineering', attached: true }],
     })
+    expect(ctx.hyperlakePacks.upsertResource({ packId: 'data-engineering', resource: {
+      id: 'production', name: 'Production', description: 'Production cluster.', providerId: 'fixture-resources',
+      resourceType: 'hyperlake-query-resource', resourceId: 'cluster-1',
+    } }).ok).toBe(true)
+    expect(ctx.hyperlakePacks.configure({ packId: 'data-engineering', bindings: [{
+      slotId: 'data-environment', resourceType: 'hyperlake-query-resource', resourceId: 'cluster-1',
+    }] }).ok).toBe(true)
+    expect(ctx.hyperlakePacks.removeResource({ packId: 'data-engineering', resourceId: 'production' }).entry)
+      .toMatchObject({ resources: [], bindings: [] })
   })
 
   it('rejects credential-bearing plugin URLs before invoking the package manager', async () => {
