@@ -125,6 +125,12 @@ export const PROFILE_TEMPLATES: Record<string, readonly string[]> = {
 /** Installation-owned bundle tuples normalized to the shipped template. */
 const INSTALLATION_OWNED_PROFILE_TUPLES: Record<string, readonly string[]> = {
   headless: ['@deepseek-ai/dsh-base', '@cerebrixos/superharness-web-app', '@deepseek-ai/dsh-headless'],
+  hyperlake: [
+    '@deepseek-ai/dsh-base',
+    '@deepseek-ai/dsh-web-app',
+    '@cerebrixos/superharness-base',
+    '@cerebrixos/superharness-adapter-hyperlake',
+  ],
 }
 
 /** The bundle list a `dsh plugin` init uses for a name with no shipped template. */
