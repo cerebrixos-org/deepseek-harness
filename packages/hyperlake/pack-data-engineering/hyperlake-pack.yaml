@@ -45,6 +45,14 @@ resourceSlots:
     types: [temporal, prefect, workflow-service]
     required: false
     description: Optional workflow system for deterministic execution, retries, approvals, and verification.
+  - id: semantic-project
+    types: [semantic-model-project]
+    required: false
+    description: Optional governed semantic project used for natural-language query generation and metric definitions.
+  - id: monitor
+    types: [hyperlake-monitor]
+    required: false
+    description: Optional scheduled monitor used for freshness, quality, observability, or policy verification.
 assets:
   - id: silver-orders-ddl
     type: ddl

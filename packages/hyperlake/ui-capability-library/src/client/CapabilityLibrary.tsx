@@ -2,9 +2,11 @@ import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import type {
   CapabilityAssetAttachRequest, CapabilityAssetRemoveRequest, CapabilityAttachmentRemoveRequest,
   CapabilityAttachmentUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest,
-  CapabilityOutcome, CapabilityOutcomesSetRequest, CapabilityProviderAttachment, CapabilityResourceRemoveRequest,
+  CapabilityOutcome, CapabilityOutcomesSetRequest, CapabilityProviderAttachment, CapabilityResourceAttachment,
+  CapabilityResourceRemoveRequest,
   CapabilityResourceUpsertRequest, PackCatalogEntry, PackCatalogSnapshot, PackConfigureRequest,
-  PackOperationResult, PackSelectRequest, PackSelectionResult, PackSetEnabledRequest,
+  PackOperationResult, PackSelectRequest, PackSelectionRequest, PackSelectionResult, PackSessionSelection,
+  PackSetEnabledRequest,
   PluginInstallRequest, PluginOperationResult, PluginRemoveRequest, PluginResourceDiscoverRequest,
   PluginResourceView,
 } from '@cerebrixos/superharness-packs/types'
@@ -17,6 +19,7 @@ export interface CapabilityLibraryInjected {
   setEnabled: (request: PackSetEnabledRequest) => Promise<PackOperationResult>
   configure: (request: PackConfigureRequest) => Promise<PackOperationResult>
   select: (request: PackSelectRequest) => Promise<PackSelectionResult>
+  selection: (request: PackSelectionRequest) => Promise<PackSessionSelection>
   createCapability: (request: CapabilityCreateRequest) => Promise<PackOperationResult>
   deleteCapability: (request: CapabilityDeleteRequest) => Promise<PackOperationResult>
   upsertAttachment: (request: CapabilityAttachmentUpsertRequest) => Promise<PackOperationResult>
@@ -33,20 +36,13 @@ export interface CapabilityLibraryInjected {
 
 export type CapabilityLibraryProps = PropsRuntime<'settings.section'> & PropsLocale<'settings.capabilityLibrary'> & InjectFace<CapabilityLibraryInjected>
 export type CapabilityHomeProps = CapabilityLibraryInjected & PropsLocale<'settings.capabilityLibrary'> & Pick<CapabilityLibraryProps, 'useSessions'>
+export type CapabilityChooserProps = PropsRuntime<'conversation.input.left'> & PropsLocale<'settings.capabilityLibrary'> & InjectFace<CapabilityLibraryInjected>
 interface CapabilityLibraryViewProps extends CapabilityLibraryInjected, PropsLocale<'settings.capabilityLibrary'> {
   useSessions: CapabilityLibraryProps['useSessions']
   surface?: 'settings' | 'home'
 }
 type ViewState = { status: 'loading' } | { status: 'error'; code?: string } | { status: 'ready'; snapshot: PackCatalogSnapshot }
 type DetailTab = 'overview' | 'outcomes' | 'resources' | 'tools' | 'assets' | 'workflows' | 'evaluations' | 'access' | 'advanced'
-type BindingDraft = Record<string, { resourceType: string; resourceId: string }>
-
-function bindingsFor(entry: PackCatalogEntry): BindingDraft {
-  return Object.fromEntries(entry.resourceSlots.map((slot) => {
-    const binding = entry.bindings.find(candidate => candidate.slotId === slot.id)
-    return [slot.id, { resourceType: binding?.resourceType ?? slot.types[0] ?? '', resourceId: binding?.resourceId ?? '' }]
-  }))
-}
 
 function slug(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 96)
@@ -62,9 +58,14 @@ function failureState(error: unknown): ViewState {
   return code === undefined ? { status: 'error' } : { status: 'error', code }
 }
 
+function resourceFailure(error: unknown, fallback: string): string {
+  if (error instanceof Error && /request failed: internal$/.test(error.message)) return fallback
+  return error instanceof Error ? error.message : String(error)
+}
+
 export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode {
   const {
-    catalog, setEnabled, configure, select, createCapability, deleteCapability, upsertAttachment,
+    catalog, setEnabled, configure, select, selection, createCapability, deleteCapability, upsertAttachment,
     removeAttachment, setOutcomes, attachAsset, removeAsset, upsertResource, removeResource,
     discoverResources, t, useSessions, surface = 'settings',
   } = props
@@ -76,17 +77,29 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
   const [state, setState] = useState<ViewState>({ status: 'loading' })
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<Record<string, string>>({})
-  const [drafts, setDrafts] = useState<Record<string, BindingDraft>>({})
   const [creating, setCreating] = useState(false)
+  const [sessionSelection, setSessionSelection] = useState<PackSessionSelection | undefined>()
 
   const load = async (): Promise<void> => {
     try {
       const snapshot = await catalog()
       setState({ status: 'ready', snapshot })
-      setDrafts(Object.fromEntries(snapshot.entries.map(entry => [entry.id, bindingsFor(entry)])))
     } catch (error) { setState(failureState(error)) }
   }
   useEffect(() => { void load() }, [catalog])
+  useEffect(() => {
+    let current = true
+    if (currentSession === undefined) {
+      setSessionSelection(undefined)
+      return () => { current = false }
+    }
+    void selection({ sessionId: currentSession.id }).then((value) => {
+      if (current) setSessionSelection(value)
+    }).catch(() => {
+      if (current) setSessionSelection(undefined)
+    })
+    return () => { current = false }
+  }, [currentSession?.id, selection])
 
   const mutate = async (key: string, operation: () => Promise<PackOperationResult>): Promise<boolean> => {
     setBusy(key)
@@ -108,7 +121,42 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
       return
     }
     const ok = await mutate(entry.id, () => select({ sessionId: currentSession.id, packId: entry.id, ...(outcomeId ? { outcomeId } : {}) }))
-    if (ok) setNotice(current => ({ ...current, [entry.id]: t('selected') }))
+    if (ok) {
+      setSessionSelection({
+        sessionId: currentSession.id, selected: true, packId: entry.id, version: entry.version,
+        ...(outcomeId ? { outcomeId } : {}),
+      })
+      setNotice(current => ({ ...current, [entry.id]: t('selected') }))
+    }
+  }
+
+  const bindResource = async (entry: PackCatalogEntry, slotId: string, resource: CapabilityResourceAttachment): Promise<void> => {
+    setBusy(entry.id)
+    setNotice(current => ({ ...current, [entry.id]: '' }))
+    try {
+      const attached = await upsertResource({ packId: entry.id, resource })
+      if (!attached.ok) {
+        setNotice(current => ({ ...current, [entry.id]: attached.message ?? t('operationFailed') }))
+        return
+      }
+      const bindings = [
+        ...entry.bindings.filter(binding => binding.slotId !== slotId),
+        { slotId, resourceType: resource.resourceType, resourceId: resource.resourceId },
+      ]
+      const configured = await configure({ packId: entry.id, bindings })
+      if (!configured.ok) {
+        setNotice(current => ({ ...current, [entry.id]: configured.message ?? t('operationFailed') }))
+        return
+      }
+      await load()
+      setNotice(current => ({ ...current, [entry.id]: t('resourceBound') }))
+    } catch (error) {
+      setNotice(current => ({ ...current, [entry.id]: error instanceof Error ? error.message : String(error) }))
+    } finally { setBusy(null) }
+  }
+
+  const unbindResource = async (entry: PackCatalogEntry, slotId: string): Promise<void> => {
+    await mutate(entry.id, () => configure({ packId: entry.id, bindings: entry.bindings.filter(binding => binding.slotId !== slotId) }))
   }
 
   const snapshot = state.status === 'ready' ? state.snapshot : undefined
@@ -118,6 +166,8 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
     ...snapshot.installedPlugins.map(plugin => ({ id: plugin.packageName, name: plugin.packageName })),
   ].filter((plugin, index, all) => all.findIndex(candidate => candidate.id === plugin.id) === index)
   const shared = snapshot?.attachments.filter(attachment => attachment.scope === 'shared') ?? []
+  const assignedToolNames = new Set(snapshot?.attachments.flatMap(attachment => attachment.toolNames) ?? [])
+  const unassignedTools = snapshot?.availableTools.filter(tool => !assignedToolNames.has(tool.name)) ?? []
 
   return <div className={css.section} data-surface={surface} aria-busy={state.status === 'loading'}>
     {state.status === 'loading' ? <p className={css.message}>{t('loading')}</p> : null}
@@ -135,7 +185,7 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
         const evaluations = entry.assets.filter(asset => asset.type === 'evaluation')
         const workflows = entry.assets.filter(asset => asset.type === 'routine' || asset.type === 'goal')
         const otherAssets = entry.assets.filter(asset => asset.type !== 'evaluation' && asset.type !== 'routine' && asset.type !== 'goal')
-        const draft = drafts[entry.id] ?? bindingsFor(entry)
+        const active = sessionSelection?.selected === true && sessionSelection.packId === entry.id
         const scoped = snapshot.attachments
           .filter(attachment => attachment.scope === 'capability' && attachment.capabilityId === entry.id)
         return <li className={css.card} key={entry.id} data-open={open ? 'true' : undefined}>
@@ -145,9 +195,10 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
               <IconChevronDownOutline14 className={css.chevron} aria-hidden="true" />
             </button>
             <div className={css.actions}>
-              <span className={css.state} data-state={entry.ready ? 'active' : entry.enabled ? 'failed' : 'disabled'}>{entry.ready ? t('ready') : entry.enabled ? t('needsSetup') : t('disabled')}</span>
+              <span className={css.state} data-state={active || entry.ready ? 'active' : entry.enabled ? 'failed' : 'disabled'}>{active ? t('activeConversation') : entry.ready ? t('ready') : entry.enabled ? t('needsSetup') : t('disabled')}</span>
               <button type="button" disabled={entryBusy} onClick={() => { void mutate(entry.id, () => setEnabled({ packId: entry.id, enabled: !entry.enabled })) }}>{entry.enabled ? t('disable') : t('enable')}</button>
-              <button type="button" disabled={entryBusy || !entry.ready} onClick={() => { void usePack(entry, entry.outcomes[0]?.id) }}>{t('use')}</button>
+              {entry.enabled && !entry.ready ? <button type="button" disabled={entryBusy} onClick={() => { setExpanded(entry.id); setTab('resources') }}>{t('setUp')}</button> : null}
+              {entry.ready ? <button type="button" disabled={entryBusy || active || currentSession === undefined || !currentSession.blank || sessionSelection?.selected === true} onClick={() => { void usePack(entry, entry.outcomes[0]?.id) }}>{active ? t('active') : t('use')}</button> : null}
             </div>
           </div>
           {open ? <div className={css.details} id={detailsId}>
@@ -164,24 +215,22 @@ export function CapabilityLibrary(props: CapabilityLibraryViewProps): ReactNode 
               onUse={(outcomeId) => { void usePack(entry, outcomeId) }}
               onSave={(outcomes) => { void mutate(entry.id, () => setOutcomes({ packId: entry.id, outcomes })) }} /> : null}
             {tab === 'tools' ? <div className={css.providerPanel}>
-              <h4>{t('coreTools')}</h4><ToolList tools={snapshot.coreTools} empty={t('none')} />
+              <h4>{t('coreTools')}</h4><p className={css.message}>{t('coreToolsUniversal')}</p><ToolList tools={snapshot.coreTools} empty={t('none')} />
               {shared.length > 0 ? <><h4>{t('globalTools')}</h4>
                 <AttachmentList attachments={shared} busy={busy} t={t} /></> : null}
               <h4>{t('capabilityTools')}</h4>
               <AttachmentList attachments={scoped} removable busy={busy} t={t}
                 onRemove={(id) => { void mutate(entry.id, () => removeAttachment({ attachmentId: id })) }} />
+              <h4>{t('unassignedTools')}</h4><p className={css.message}>{t('unassignedToolsDescription')}</p><ToolList tools={unassignedTools} empty={t('none')} />
               <AttachmentEditor scope="capability" capabilityId={entry.id} outcomes={entry.outcomes}
                 tools={snapshot.availableTools} plugins={plugins} busy={entryBusy} t={t}
                 onSave={(attachment) => { void mutate(entry.id, () => upsertAttachment({ attachment })) }} />
             </div> : null}
             {tab === 'resources' ? <div className={css.configure}>
-              {entry.resourceSlots.length === 0 ? <p className={css.message}>{t('none')}</p> : entry.resourceSlots.map(slot => <fieldset key={slot.id}><legend>{slot.id} · {t(slot.required ? 'required' : 'optional')}</legend><p>{slot.description}</p>
-                <label>{t('attachedResource')}<select value={draft[slot.id]?.resourceId ?? ''} onChange={(event) => {
-                  const resource = entry.resources.find(candidate => candidate.resourceId === event.target.value)
-                  setDrafts(current => ({ ...current, [entry.id]: { ...draft, [slot.id]: { resourceType: resource?.resourceType ?? '', resourceId: resource?.resourceId ?? '' } } }))
-                }}><option value="">{t('selectResource')}</option>{entry.resources.filter(resource => slot.types.includes(resource.resourceType)).map(resource => <option value={resource.resourceId} key={resource.id}>{resource.name}</option>)}</select></label>
-              </fieldset>)}
-              {entry.resourceSlots.length > 0 ? <button type="button" disabled={entryBusy} onClick={() => { void mutate(entry.id, () => configure({ packId: entry.id, bindings: Object.entries(draft).filter(([, value]) => value.resourceId.trim() !== '').map(([slotId, value]) => ({ slotId, resourceType: value.resourceType, resourceId: value.resourceId.trim() })) })) }}>{t('saveConfiguration')}</button> : null}
+              {entry.resourceSlots.length === 0 ? <p className={css.message}>{t('noResourceSlots')}</p> : entry.resourceSlots.map(slot => <SlotResourceSetup key={slot.id} entry={entry} slot={slot} providers={snapshot.resourceProviders} busy={entryBusy} t={t} discover={discoverResources}
+                onBind={resource => bindResource(entry, slot.id, resource)}
+                onUnbind={() => unbindResource(entry, slot.id)} />)}
+              <h4>{t('additionalResources')}</h4><p>{t('additionalResourcesDescription')}</p>
               <ResourceComposer entry={entry} providers={snapshot.resourceProviders} busy={entryBusy} t={t}
                 discover={discoverResources}
                 onAttach={(resource) => { void mutate(entry.id, () => upsertResource({ packId: entry.id, resource })) }}
@@ -262,7 +311,7 @@ function AttachmentList({ attachments, removable = false, busy, t, onRemove }: {
   onRemove?: (id: string) => void
 }): ReactNode {
   if (attachments.length === 0) return <p className={css.message}>{t('noProviders')}</p>
-  return <ul className={css.attachments}>{attachments.map(attachment => <li key={attachment.id}><div><strong>{attachment.name}</strong><small>{attachment.scope === 'shared' ? t('shared') : t('capabilitySpecific')} · {attachment.execution}</small><p>{attachment.description}</p><code>{attachment.toolNames.join(', ')}</code></div>{removable && onRemove ? <button type="button" disabled={busy !== null} onClick={() => { onRemove(attachment.id) }}>{t('remove')}</button> : null}</li>)}</ul>
+  return <ul className={css.attachments}>{attachments.map(attachment => <li key={attachment.id}><div><strong>{attachment.name}</strong><small>{attachment.scope === 'shared' ? t('shared') : t('capabilitySpecific')} · {attachment.execution}</small><p>{attachment.description}</p><code>{attachment.toolNames.join(', ')}</code></div>{removable && attachment.removable !== false && onRemove ? <button type="button" disabled={busy !== null} onClick={() => { onRemove(attachment.id) }}>{t('remove')}</button> : null}</li>)}</ul>
 }
 
 function OutcomeEditor({ entry, tools, busy, t, onSave, onUse }: { entry: PackCatalogEntry; tools: PackCatalogSnapshot['coreTools']; busy: boolean; t: CapabilityLibraryViewProps['t']; onSave: (outcomes: PackCatalogEntry['outcomes']) => void; onUse: (outcomeId: string) => void }): ReactNode {
@@ -296,6 +345,59 @@ function SummaryMetric({ label, value }: { label: string; value: number }): Reac
 
 function ToolList({ tools, empty }: { tools: PackCatalogSnapshot['coreTools']; empty: string }): ReactNode { return tools.length === 0 ? <p className={css.message}>{empty}</p> : <ul className={css.outcomes}>{tools.map(tool => <li key={tool.name}><strong>{tool.name}</strong><p>{tool.description}</p></li>)}</ul> }
 
+function SlotResourceSetup({ entry, slot, providers, busy, t, discover, onBind, onUnbind }: {
+  entry: PackCatalogEntry
+  slot: PackCatalogEntry['resourceSlots'][number]
+  providers: PackCatalogSnapshot['resourceProviders']
+  busy: boolean
+  t: CapabilityLibraryViewProps['t']
+  discover: (request: PluginResourceDiscoverRequest) => Promise<PluginResourceView[]>
+  onBind: (resource: CapabilityResourceAttachment) => Promise<void>
+  onUnbind: () => Promise<void>
+}): ReactNode {
+  const compatible = providers.filter(provider => provider.resourceTypes.some(type => slot.types.includes(type)))
+  const [providerId, setProviderId] = useState(compatible[0]?.id ?? '')
+  const [discovered, setDiscovered] = useState<PluginResourceView[]>([])
+  const [selected, setSelected] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const binding = entry.bindings.find(candidate => candidate.slotId === slot.id)
+  const bound = binding === undefined ? undefined : entry.resources.find(resource => resource.resourceId === binding.resourceId)
+  const attached = entry.resources.filter(resource => slot.types.includes(resource.resourceType))
+  useEffect(() => {
+    if (!compatible.some(provider => provider.id === providerId)) setProviderId(compatible[0]?.id ?? '')
+  }, [compatible, providerId])
+  const load = async (): Promise<void> => {
+    if (providerId === '') return
+    setLoading(true); setError('')
+    try { setDiscovered((await discover({ providerId })).filter(resource => slot.types.includes(resource.type))) } catch (reason) {
+      setError(resourceFailure(reason, t('resourceDiscoveryFailed')))
+    } finally { setLoading(false) }
+  }
+  const bindDiscovered = async (): Promise<void> => {
+    const resource = discovered.find(candidate => candidate.id === selected)
+    if (resource === undefined) return
+    await onBind({
+      id: slug(`${resource.providerId}-${resource.id}`), name: resource.name, description: resource.description,
+      providerId: resource.providerId, resourceType: resource.type, resourceId: resource.id,
+    })
+  }
+  return <fieldset><legend>{slot.id} · {t(slot.required ? 'required' : 'optional')}</legend><p>{slot.description}</p>
+    <div className={css.bindingSummary}><strong>{binding ? t('bound') : t('notBound')}</strong><span>{bound?.name ?? binding?.resourceId ?? t('noResourceSelected')}</span>{binding ? <button type="button" disabled={busy} onClick={() => { void onUnbind() }}>{t('unbind')}</button> : null}</div>
+    {attached.length > 0 ? <label>{t('attachedResource')}<select value="" disabled={busy} onChange={(event) => {
+      const resource = attached.find(candidate => candidate.id === event.target.value)
+      if (resource !== undefined) void onBind(resource)
+    }}><option value="">{t('selectAttachedResource')}</option>{attached.map(resource => <option value={resource.id} key={resource.id}>{resource.name}</option>)}</select></label> : null}
+    {compatible.length === 0 ? <p className={css.providerMissing}>{t('providerRequired')}</p> : <div className={css.discoveryRow}>
+      <label>{t('provider')}<select value={providerId} onChange={(event) => { setProviderId(event.target.value); setDiscovered([]); setSelected('') }}>{compatible.map(provider => <option value={provider.id} key={provider.id}>{provider.name}</option>)}</select></label>
+      <button type="button" disabled={busy || loading || providerId === ''} onClick={() => { void load() }}>{loading ? t('loading') : t('discoverResources')}</button>
+      <label>{t('resource')}<select value={selected} disabled={discovered.length === 0} onChange={(event) => { setSelected(event.target.value) }}><option value="">{t('selectResource')}</option>{discovered.map(resource => <option value={resource.id} key={`${resource.providerId}:${resource.id}`}>{resource.name}</option>)}</select></label>
+      <button type="button" disabled={busy || selected === ''} onClick={() => { void bindDiscovered() }}>{t('bindResource')}</button>
+    </div>}
+    {error ? <p role="alert" className={css.notice}>{error}</p> : null}
+  </fieldset>
+}
+
 function ResourceComposer({ entry, providers, busy, t, discover, onAttach, onRemove }: {
   entry: PackCatalogEntry
   providers: PackCatalogSnapshot['resourceProviders']
@@ -316,7 +418,7 @@ function ResourceComposer({ entry, providers, busy, t, discover, onAttach, onRem
     try {
       setResources(await discover({ providerId }))
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(resourceFailure(reason, t('resourceDiscoveryFailed')))
     } finally {
       setLoading(false)
     }
@@ -367,6 +469,43 @@ function AssetList({ entries, empty, approval, removeLabel, onRemove, busy = fal
 }
 
 export function CapabilityHome(props: CapabilityHomeProps): ReactNode { return <CapabilityLibrary {...props} surface="home" /> }
+
+/** Compact capability and outcome selector rendered beside the conversation composer. */
+export function CapabilityChooser({ session, catalog, select, selection, t }: CapabilityChooserProps): ReactNode {
+  const [snapshot, setSnapshot] = useState<PackCatalogSnapshot | undefined>()
+  const [selected, setSelected] = useState<PackSessionSelection | undefined>()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let current = true
+    void Promise.all([catalog(), selection({ sessionId: session.sessionId })]).then(([nextCatalog, nextSelection]) => {
+      if (current) { setSnapshot(nextCatalog); setSelected(nextSelection) }
+    }).catch(() => { if (current) setError(t('error')) })
+    return () => { current = false }
+  }, [catalog, selection, session.sessionId, t])
+  if (snapshot === undefined) return error === '' ? null : <span className={css.chooserError}>{error}</span>
+  const entries = snapshot.entries.filter(entry => entry.category !== 'adapter' && entry.ready)
+  const value = selected?.selected === true ? `${selected.packId ?? ''}::${selected.outcomeId ?? ''}` : ''
+  const activate = async (encoded: string): Promise<void> => {
+    const [packId, outcomeId] = encoded.split('::')
+    if (!packId) return
+    setBusy(true); setError('')
+    try {
+      const result = await select({ sessionId: session.sessionId, packId, ...(outcomeId ? { outcomeId } : {}) })
+      if (!result.ok) { setError(result.message ?? t('operationFailed')); return }
+      setSelected({
+        sessionId: session.sessionId, selected: true, packId,
+        ...(result.version ? { version: result.version } : {}), ...(outcomeId ? { outcomeId } : {}),
+      })
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) } finally { setBusy(false) }
+  }
+  return <div className={css.chooser}><label><span>{t('capability')}</span><select aria-label={t('capability')} value={value} disabled={busy || selected?.selected === true || !session.blank} onChange={(event) => { void activate(event.target.value) }}>
+    <option value="">{session.blank ? t('chooseCapability') : t('noCapabilitySelected')}</option>
+    {entries.flatMap(entry => entry.outcomes.length === 0
+      ? [<option value={`${entry.id}::`} key={entry.id}>{entry.name}</option>]
+      : entry.outcomes.map(outcome => <option value={`${entry.id}::${outcome.id}`} key={`${entry.id}:${outcome.id}`}>{entry.name} · {outcome.name}</option>))}
+  </select></label>{selected?.selected === true ? <span className={css.activeMark}><IconCheckOutline14 />{t('activeConversation')}</span> : null}{error ? <span className={css.chooserError}>{error}</span> : null}</div>
+}
 
 type PluginCategory = 'installed' | 'tools' | 'resources' | 'assets' | 'evaluations' | 'outcomes'
 

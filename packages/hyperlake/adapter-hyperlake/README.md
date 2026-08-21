@@ -6,6 +6,10 @@ This installable bundle starts the unchanged `hyperlake mcp serve --stdio` comma
 
 Credentials remain in the existing Hyperlake CLI configuration and are scrubbed from the spawned process's inherited environment by the MCP client. The adapter stores no credential values in its pack manifest.
 
+The adapter also exposes typed resource discovery backed by the same installed CLI and its existing login. Capability slots can discover Hyperlake clusters, SaaS Lake data environments, deployed agents, semantic-model projects, governed services, and monitors. Discovery returns display metadata and opaque ids only; the selected resource does not copy endpoints, JWTs, or credentials into the capability manifest. Catalog and query operations continue through the selected cluster's governed MCP tools instead of creating a second direct connection path.
+
+All `mcp__hyperlake__` tools are registered as one non-removable installation attachment. They remain shared platform capabilities, while a selected capability and its resource bindings supply the context that tells the model which authorized target to use.
+
 ## Model Experience
 
 ### Hyperlake MCP surface

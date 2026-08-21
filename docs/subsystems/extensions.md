@@ -272,6 +272,13 @@ Registry for installed industry packs and their explicitly exported assets.
 register(pack: RegisteredPack, options: PackRegistrationOptions = {}): () => void
 
 /**
+ * Register an installation-owned tool contribution for the calling plugin's lifetime.
+ * @param attachment - Shared or capability-scoped tools supplied by the installation.
+ * @returns A disposer that unregisters the contribution.
+ */
+registerInstallationAttachment(attachment: CapabilityProviderAttachment): () => void
+
+/**
  * Register resource discovery owned by one installed plugin.
  * @param provider - Installed plugin contribution that lists its authorized resources.
  * @returns A disposer that unregisters the provider.
@@ -409,6 +416,13 @@ validate(id: string, bindings: PackResourceBinding[] = []): PackValidationResult
  * @returns Selection provenance or an actionable rejection.
  */
 @Remote('select') select(request: PackSelectRequest): PackSelectionResult
+
+/**
+ * Read the immutable capability selection for one active session.
+ * @param request - Target active session.
+ * @returns The selected capability or an explicit unselected result.
+ */
+@Remote('selection') selection(request: PackSelectionRequest): PackSessionSelection
 ```
 
 Source: [`packages/hyperlake/packs/src/index.ts:390`](../../packages/hyperlake/packs/src/index.ts)

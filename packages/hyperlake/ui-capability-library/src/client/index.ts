@@ -8,11 +8,11 @@ import type {
   CapabilityAssetAttachRequest, CapabilityAssetRemoveRequest, CapabilityAttachmentRemoveRequest,
   CapabilityAttachmentUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest,
   CapabilityOutcomesSetRequest, CapabilityResourceRemoveRequest, CapabilityResourceUpsertRequest,
-  PackConfigureRequest, PackSelectRequest, PackSetEnabledRequest, PluginInstallRequest,
+  PackConfigureRequest, PackSelectRequest, PackSelectionRequest, PackSetEnabledRequest, PluginInstallRequest,
   PluginRemoveRequest, PluginResourceDiscoverRequest,
 } from '@cerebrixos/superharness-packs/types'
 import hyperlakePacksRemote from '@cerebrixos/superharness-packs/remote'
-import { CapabilityHome, CapabilityLibrary, PluginCatalog, type CapabilityLibraryInjected } from './CapabilityLibrary.tsx'
+import { CapabilityChooser, CapabilityHome, CapabilityLibrary, PluginCatalog, type CapabilityLibraryInjected } from './CapabilityLibrary.tsx'
 import { en, zh, type CapabilityLibraryLocaleKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -44,6 +44,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       setEnabled: (request: PackSetEnabledRequest) => unwrap(packs.setEnabled(request)),
       configure: (request: PackConfigureRequest) => unwrap(packs.configure(request)),
       select: (request: PackSelectRequest) => unwrap(packs.select(request)),
+      selection: (request: PackSelectionRequest) => unwrap(packs.selection(request)),
       createCapability: (request: CapabilityCreateRequest) => unwrap(packs.createCapability(request)),
       deleteCapability: (request: CapabilityDeleteRequest) => unwrap(packs.deleteCapability(request)),
       upsertAttachment: (request: CapabilityAttachmentUpsertRequest) => unwrap(packs.upsertAttachment(request)),
@@ -65,6 +66,10 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       name: 'conversation.hero.capabilities', id: 'hyperlake-capability-packs', order: 10, locale: NS,
       inject: (): CapabilityLibraryInjected => injected,
     }, CapabilityHome))
+    scope.slots.inject('conversation.input.left', () => scope.slots.register({
+      name: 'conversation.input.left', id: 'hyperlake-capability', order: 20, locale: NS,
+      inject: (): CapabilityLibraryInjected => injected,
+    }, CapabilityChooser))
     scope.slots.inject('settings.plugins.tab', () => scope.slots.register({
       name: 'settings.plugins.tab', id: 'hyperlake-contributions', order: -100, label: () => t('tab'), locale: NS,
       inject: (): CapabilityLibraryInjected => injected,

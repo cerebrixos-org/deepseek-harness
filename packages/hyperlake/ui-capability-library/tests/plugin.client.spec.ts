@@ -23,7 +23,7 @@ describe('Capability Library client plugin', () => {
 
     expect(inject).toEqual(['slots', 'locale', 'remote'])
     expect(mount).toHaveBeenCalledOnce()
-    expect(injectSlot).toHaveBeenCalledTimes(3)
+    expect(injectSlot).toHaveBeenCalledTimes(4)
     await cleanup()
     expect(disposeFiber).toHaveBeenCalledOnce()
     expect(disposeRemote).toHaveBeenCalledOnce()
