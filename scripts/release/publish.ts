@@ -4,8 +4,9 @@
  * Publication is decided per package against the registry, never from a list of
  * "what this release includes": a version the registry lacks is published, a
  * version whose published tarball has the same integrity is skipped, and a
- * version whose published tarball differs fails the run — that last case means
- * the content changed without a version bump
+ * separately packed version is skipped only when npm's signed provenance binds
+ * it to this GitHub workflow and either the current commit or an explicitly
+ * authorized ancestor used by a partial release. Everything else fails the run
  * ([rationale](../../.agents/notes/implemented/process/2026-08-10-npm-release-sequences.md)).
  *
  * Skipping on identical integrity is what makes re-running the publish step over
@@ -20,6 +21,7 @@ import { parseArgs } from 'node:util'
 import { releaseFamily } from './families.ts'
 import { attempt, attemptEchoed, isEntry } from './process.ts'
 import { packedIdentity, readPublishOrder } from './tarball.ts'
+import { hasMatchingGitHubProvenance } from './provenance.ts'
 
 /**
  * Registry codes that answer a write which did not settle, rather than a
@@ -84,6 +86,55 @@ function registryState(name: string, version: string): RegistryState {
   return { kind: 'present', integrity: parsed }
 }
 
+function allowedGitCommits(current: string): readonly string[] {
+  const resume = process.env.NPM_RELEASE_RESUME_SHA
+  if (resume === undefined || resume === '') return [current]
+  if (!/^[0-9a-f]{40}$/.test(resume)) {
+    throw new Error('NPM_RELEASE_RESUME_SHA must be a full lowercase Git commit SHA')
+  }
+  const ancestor = attempt('git', ['merge-base', '--is-ancestor', resume, current])
+  if (ancestor.status !== 0) {
+    throw new Error(`NPM_RELEASE_RESUME_SHA ${resume} is not an ancestor of ${current}`)
+  }
+  return resume === current ? [current] : [current, resume]
+}
+
+async function matchesAuthorizedGitHubBuild(name: string, version: string, integrity: string): Promise<boolean> {
+  const repository = process.env.GITHUB_REPOSITORY
+  const gitCommit = process.env.GITHUB_SHA
+  const workflowRef = process.env.GITHUB_WORKFLOW_REF
+  if (repository === undefined || gitCommit === undefined || workflowRef === undefined) return false
+  const marker = `${repository}/`
+  const at = workflowRef.lastIndexOf('@')
+  if (!workflowRef.startsWith(marker) || at < marker.length) return false
+  const workflowPath = workflowRef.slice(marker.length, at)
+  if (!workflowPath.startsWith('.github/workflows/')) return false
+
+  const url = `https://registry.npmjs.org/-/npm/v1/attestations/${encodeURIComponent(name)}@${version}`
+  const response = await fetch(url)
+  if (!response.ok) return false
+  const attestations: unknown = await response.json()
+  return allowedGitCommits(gitCommit).some(commit => hasMatchingGitHubProvenance(attestations, {
+    gitCommit: commit,
+    integrity,
+    name,
+    repository,
+    version,
+    workflowPath,
+  }))
+}
+
+async function registryMatchesBuild(
+  state: RegistryState,
+  tarball: string,
+  name: string,
+  version: string,
+): Promise<boolean> {
+  if (state.kind === 'absent') return false
+  if (state.integrity === integrityOf(tarball)) return true
+  return matchesAuthorizedGitHubBuild(name, version, state.integrity)
+}
+
 /**
  * Publish one tarball, retrying a registry write that did not settle.
  *
@@ -107,7 +158,7 @@ async function publishTarball(tarball: string, name: string, version: string): P
     if (result.status === 0) return
 
     const settled = registryState(name, version)
-    if (settled.kind === 'present' && settled.integrity === integrityOf(tarball)) {
+    if (await registryMatchesBuild(settled, tarball, name, version)) {
       console.log(`release publish: ${name}@${version} landed despite a reported failure, continuing`)
       return
     }
@@ -150,14 +201,15 @@ async function main(): Promise<void> {
     const state = registryState(name, version)
     if (state.kind === 'present') {
       const local = integrityOf(tarball)
-      if (state.integrity !== local) {
+      if (!await registryMatchesBuild(state, tarball, name, version)) {
         throw new Error(
           `${name}@${version} is already published with different content`
           + `\n  registry: ${state.integrity}\n  packed:   ${local}`
           + '\nBump the version, or investigate why the build is not reproducible.',
         )
       }
-      console.log(`release publish: ${progress} ${name}@${version} already published, skipping`)
+      const reason = state.integrity === local ? 'identical tarball' : 'same signed GitHub build'
+      console.log(`release publish: ${progress} ${name}@${version} already published (${reason}), skipping`)
       skipped += 1
       continue
     }

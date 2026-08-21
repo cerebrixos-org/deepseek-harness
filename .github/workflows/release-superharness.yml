@@ -11,6 +11,11 @@ on:
         required: true
         type: boolean
         default: false
+      resume_from_sha:
+        description: Optional full SHA of an ancestor whose signed partial release may be resumed.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -64,4 +69,6 @@ jobs:
         run: pnpm run release:verify-packed-install --family superharness --from dist/npm
 
       - name: Publish tarballs
+        env:
+          NPM_RELEASE_RESUME_SHA: ${{ inputs.resume_from_sha }}
         run: pnpm run release:publish --family superharness --from dist/npm
