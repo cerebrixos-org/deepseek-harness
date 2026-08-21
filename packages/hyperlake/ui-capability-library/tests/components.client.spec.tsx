@@ -100,6 +100,12 @@ describe('CapabilityLibrary', () => {
     expect(await screen.findByRole('button', { name: /Data Engineering/ })).toBeTruthy()
   })
 
+  it('shows only a safe typed RPC failure code', async () => {
+    const catalog = vi.fn().mockRejectedValue(new Error('hyperlakePacks request failed: method-not-found'))
+    render(<CapabilityLibrary {...props({ catalog })} />)
+    expect((await screen.findByRole('alert')).textContent).toContain('(method-not-found)')
+  })
+
   it('creates a capability with explicit outcomes', async () => {
     const createCapability = vi.fn().mockResolvedValue({ ok: true, packId: 'risk-review' })
     render(<CapabilityLibrary {...props({ createCapability })} />)
