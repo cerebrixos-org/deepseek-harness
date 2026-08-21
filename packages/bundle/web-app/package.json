@@ -1,7 +1,7 @@
 {
   "name": "@cerebrixos/superharness-web-app",
   "description": "The branded Hyperlake SuperHarness browser-surface bundle and runtime glue",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publishConfig": {
     "access": "public"
   },
