@@ -33,6 +33,33 @@ export interface Config {
 
 Source: [`packages/hyperlake/packs/src/index.ts:123`](../packages/hyperlake/packs/src/index.ts)
 
+<a id="cerebrixossuperharness-web-app"></a>
+
+## `@cerebrixos/superharness-web-app`
+
+Requires: `webServer`
+
+```ts config-catalog
+/** Plugin config: composed deployment settings plus per-invocation command-line values. */
+export interface Config {
+  /** Permit default-browser handoff after the Loader tree settles; an SSH launch suppresses it. */
+  openBrowser: boolean
+  /** Print the URL line on activation; a non-interactive layer can turn it off. */
+  printUrl: boolean
+  /**
+   * Register the model-visible surface context (the `app:web-surface` prompt
+   * section and the `DSH_WEB_URL` bash variable). A one-shot non-interactive
+   * layer can turn it off when its user is not in the GUI, so the
+   * orientation text would be false.
+   */
+  surfaceContext: boolean
+  /** Explicit `--trusted-host` authorities from this invocation. */
+  trustedHosts: string[]
+}
+```
+
+Source: [`packages/bundle/web-app/src/index.ts:42`](../packages/bundle/web-app/src/index.ts)
+
 <a id="deepseek-aidsh-acp"></a>
 
 ## `@deepseek-ai/dsh-acp`
@@ -3048,33 +3075,6 @@ export interface WebRuntimeConfig {
 ```
 
 Source: [`packages/web/web/src/index.ts:55`](../packages/web/web/src/index.ts)
-
-<a id="deepseek-aidsh-web-app"></a>
-
-## `@cerebrixos/superharness-web-app`
-
-Requires: `webServer`
-
-```ts config-catalog
-/** Plugin config: composed deployment settings plus per-invocation command-line values. */
-export interface Config {
-  /** Permit default-browser handoff after the Loader tree settles; an SSH launch suppresses it. */
-  openBrowser: boolean
-  /** Print the URL line on activation; a non-interactive layer can turn it off. */
-  printUrl: boolean
-  /**
-   * Register the model-visible surface context (the `app:web-surface` prompt
-   * section and the `DSH_WEB_URL` bash variable). A one-shot non-interactive
-   * layer can turn it off when its user is not in the GUI, so the
-   * orientation text would be false.
-   */
-  surfaceContext: boolean
-  /** Explicit `--trusted-host` authorities from this invocation. */
-  trustedHosts: string[]
-}
-```
-
-Source: [`packages/bundle/web-app/src/index.ts:42`](../packages/bundle/web-app/src/index.ts)
 
 <a id="deepseek-aidsh-web-fetch-http"></a>
 
