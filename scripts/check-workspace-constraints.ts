@@ -61,7 +61,7 @@ const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   '@cerebrixos/hyperlake-superharness': ['lib/*.js', 'config'],
   // The Web build emits sourcemaps for browser debugging; publishing them is
   // what the payload policy forbids, so the bundle ships without them.
-  '@deepseek-ai/dsh-web-frontend': ['dist', '!dist/**/*.map'],
+  '@cerebrixos/superharness-web-frontend': ['dist', '!dist/**/*.map'],
 }
 
 /** The subset of package.json fields this constraint check cares about. */

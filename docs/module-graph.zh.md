@@ -117,7 +117,6 @@ flowchart TD
   subgraph group_bundle["packages/bundle"]
     pkg_base["base"]
     pkg_headless["headless"]
-    pkg_web_app["web-app"]
   end
   subgraph group_client["packages/client"]
     pkg_client_connection["client-connection"]
@@ -1026,9 +1025,6 @@ flowchart TD
   pkg_hooks_claude_code --> pkg_session_persistence
   pkg_hooks_claude_code --> pkg_subagent
   pkg_hooks_claude_code --> pkg_tools
-  pkg_web_app --> pkg_invariants
-  pkg_web_app --> pkg_shell_env
-  pkg_web_app --> pkg_system_prompt
   pkg_compaction_tool_result_pruner --> pkg_compaction
   pkg_compaction_tool_result_pruner --> pkg_invariants
   pkg_compaction_tool_result_pruner --> pkg_llm
@@ -1621,7 +1617,6 @@ flowchart TD
 | [`tool-subagent-control`](../packages/subagent/tool-subagent-control) | `subagent` | [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`subagent`](../packages/subagent/subagent), [`tools`](../packages/core/tools) |
 | [`tool-subagent-report`](../packages/subagent/tool-subagent-report) | `subagent` | [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`subagent`](../packages/subagent/subagent), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools) |
 | [`hooks-claude-code`](../packages/hooks/hooks-claude-code) | `hooks` | [`agent`](../packages/core/agent), [`hook-protocol`](../packages/hooks/hook-protocol), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`subagent`](../packages/subagent/subagent), [`tools`](../packages/core/tools) |
-| [`web-app`](../packages/bundle/web-app) | `bundle` | [`invariants`](../packages/runtime-diagnostics/invariants), [`shell-env`](../packages/shell/shell-env), [`system-prompt`](../packages/core/system-prompt) |
 | [`compaction-tool-result-pruner`](../packages/compaction/compaction-tool-result-pruner) | `compaction` | [`compaction`](../packages/compaction/compaction), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`token-meter`](../packages/llm/token-meter) |
 | [`experimental-agent-team`](../packages/experimental/agent-team) | `experimental` | [`agent`](../packages/core/agent), [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`subagent`](../packages/subagent/subagent) |
 | [`tool-cordis`](../packages/extensions/tool-cordis) | `extensions` | [`agent`](../packages/core/agent), [`cordis-host-runner`](../packages/extensions/cordis-host-runner), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`scope`](../packages/core/scope), [`session`](../packages/core/session), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools) |

@@ -501,7 +501,7 @@ describe('product Bundle and user-preset intersection', () => {
       },
     ], installed.map(packageDir), [
       '@deepseek-ai/dsh-base',
-      '@deepseek-ai/dsh-web-app',
+      '@cerebrixos/superharness-web-app',
       ...installed.map(packageName),
     ])
   }

@@ -738,7 +738,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       expect(stderr).toBe('')
       expect(stdout).toContain("name: '@deepseek-ai/dsh-headless'")
       expect(stdout).not.toMatch(/name: '@deepseek-ai\/dsh-host-/)
-      expect(stdout).not.toContain("name: '@deepseek-ai/dsh-web-app'")
+      expect(stdout).not.toContain("name: '@cerebrixos/superharness-web-app'")
       expect(stdout).not.toMatch(/name: '@deepseek-ai\/dsh-client-/)
     }, 30_000)
 

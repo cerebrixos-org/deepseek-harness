@@ -45,7 +45,7 @@ const NAME = 'dsh'
 /** Bundles owned by the published Hyperlake executable rather than upstream dsh. */
 const HYPERLAKE_PROFILE_BUNDLES = [
   '@deepseek-ai/dsh-base',
-  '@deepseek-ai/dsh-web-app',
+  '@cerebrixos/superharness-web-app',
   '@cerebrixos/superharness-base',
   '@cerebrixos/superharness-adapter-hyperlake',
 ] as const

@@ -127,8 +127,8 @@ importers:
   apps/cli:
     dependencies:
       '@cerebrixos/hyperlake':
-        specifier: 0.2.4
-        version: 0.2.4
+        specifier: 0.2.5
+        version: 0.2.5
       '@cerebrixos/superharness-adapter-hyperlake':
         specifier: workspace:^
         version: link:../../packages/hyperlake/adapter-hyperlake
@@ -138,6 +138,9 @@ importers:
       '@cerebrixos/superharness-packs':
         specifier: workspace:^
         version: link:../../packages/hyperlake/packs
+      '@cerebrixos/superharness-web-app':
+        specifier: workspace:^
+        version: link:../../packages/bundle/web-app
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../vendor/cordis
@@ -312,9 +315,6 @@ importers:
       '@deepseek-ai/dsh-tool-workflow':
         specifier: workspace:^
         version: link:../../packages/workflow/tool-workflow
-      '@deepseek-ai/dsh-web-app':
-        specifier: workspace:^
-        version: link:../../packages/bundle/web-app
       '@deepseek-ai/dsh-workflow-worker-thread':
         specifier: workspace:^
         version: link:../../packages/workflow/workflow-worker-thread
@@ -1315,6 +1315,9 @@ importers:
 
   packages/bundle/web-app:
     dependencies:
+      '@cerebrixos/superharness-web-frontend':
+        specifier: workspace:^
+        version: link:../../../apps/web
       '@deepseek-ai/dsh-agent-presets':
         specifier: workspace:^
         version: link:../../preset/agent-presets
@@ -1507,9 +1510,6 @@ importers:
       '@deepseek-ai/dsh-subprocess':
         specifier: workspace:^
         version: link:../../subprocess/subprocess
-      '@deepseek-ai/dsh-web-frontend':
-        specifier: workspace:^
-        version: link:../../../apps/web
       '@deepseek-ai/dsh-workspace':
         specifier: workspace:^
         version: link:../../workspace/workspace
@@ -9745,8 +9745,8 @@ packages:
   '@bufbuild/protobuf@2.13.0':
     resolution: {integrity: sha512-acq7c49vxfm1ggJ95P70TX7ABDM0vxr1SYD3BB0o0jnBLB4OAqeHyKuN+cD3w80gXEDQ2zxHpR6CUeA+O/aU9g==}
 
-  '@cerebrixos/hyperlake@0.2.4':
-    resolution: {integrity: sha512-6KGrR0cJsEKMjKxaTxpGvwQfhidoZsry9K5i4RCgajSmI/Xbh8HszPP/LqPMHtcIE27nWE4jYmzgeewNY7mv1A==}
+  '@cerebrixos/hyperlake@0.2.5':
+    resolution: {integrity: sha512-7UHiytLPsAp9JXMxLwpAy7O59oMmKdRUccLm/PBEPSTarxFEMbqE6gIThCuihhsVyxPhnFnstbsGe5P1W007cQ==}
     engines: {node: '>=20'}
     cpu: [x64, arm64]
     os: [darwin, linux, win32]
@@ -15448,7 +15448,7 @@ snapshots:
 
   '@bufbuild/protobuf@2.13.0': {}
 
-  '@cerebrixos/hyperlake@0.2.4': {}
+  '@cerebrixos/hyperlake@0.2.5': {}
 
   '@chevrotain/types@11.1.2': {}
 

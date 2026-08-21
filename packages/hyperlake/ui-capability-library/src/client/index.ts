@@ -24,10 +24,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'settings.capabilityLibrary'
 /** Services required by the Settings contribution and inventory Remote. */
-export const inject = ['slots', 'locale', 'remote', 'remote.hyperlakePacks']
+export const inject = ['slots', 'locale', 'remote']
 
 /** Register the lazy Capability Library tab. */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: ClientContext): () => Promise<void> {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'superharness-capability-library: dictionaries')
   const t = ctx.locale.bind(NS)
   const unwrap = async <T>(request: Promise<{ ok: true; value: T } | { ok: false; error: { code: string } }>): Promise<T> => {
@@ -76,4 +76,5 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: (): CapabilityLibraryInjected => injected,
   }, PluginCatalog))
+  return async () => {}
 }

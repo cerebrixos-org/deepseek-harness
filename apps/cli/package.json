@@ -1,7 +1,7 @@
 {
   "name": "@cerebrixos/hyperlake-superharness",
   "description": "Local governed AI harness for Hyperlake infrastructure and data capabilities",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publishConfig": {
     "access": "public"
   },
@@ -20,7 +20,7 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@cerebrixos/hyperlake": "0.2.4",
+    "@cerebrixos/hyperlake": "0.2.5",
     "@cerebrixos/superharness-adapter-hyperlake": "workspace:^",
     "@cerebrixos/superharness-base": "workspace:^",
     "@cerebrixos/superharness-packs": "workspace:^",
@@ -82,7 +82,7 @@
     "@deepseek-ai/dsh-tool-todo": "workspace:^",
     "@deepseek-ai/dsh-tool-web": "workspace:^",
     "@deepseek-ai/dsh-tool-workflow": "workspace:^",
-    "@deepseek-ai/dsh-web-app": "workspace:^",
+    "@cerebrixos/superharness-web-app": "workspace:^",
     "@deepseek-ai/dsh-workflow-worker-thread": "workspace:^",
     "commander": "^15.0.0",
     "js-yaml": "^4.2.0",

@@ -1,5 +1,5 @@
 /**
- * @deepseek-ai/dsh-web-app — the browser-surface bundle's runtime glue plugin
+ * @cerebrixos/superharness-web-app — the browser-surface bundle's runtime glue plugin
  * plus the bundle patch (`cordis.patch.yml`, declared by the `dsh.bundle.patch`
  * manifest field). The plugin owns the browser-surface glue: it resolves
  * the built frontend dist (workspace knowledge of this bundle, never user
@@ -8,7 +8,7 @@
  * variable, the URL line, and the default-browser handoff. App command-line
  * values arrive through the `webStartup` service expressions in the bundle
  * patch.
- * @module @deepseek-ai/dsh-web-app
+ * @module @cerebrixos/superharness-web-app
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -163,7 +163,7 @@ function localWebUrl(ctx: Context): string {
 function resolveDistIndex(): string {
   const require = createRequire(import.meta.url)
   try {
-    return require.resolve('@deepseek-ai/dsh-web-frontend/dist/index.html')
+    return require.resolve('@cerebrixos/superharness-web-frontend/dist/index.html')
   } catch {
     /* v8 ignore next 2 -- reachable only on a checkout without a built dist; the test tree builds it */
     throw new Error('web-app: frontend dist not built; run pnpm run build from the repository root first')

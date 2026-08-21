@@ -85,7 +85,7 @@ describe('release families', () => {
 
   it('rejects a family whose members disagree on the shared version', () => {
     const dsh = releaseFamily('dsh')
-    const members = [member('apps/cli', '@deepseek-ai/dsh'), { ...member('apps/web', '@deepseek-ai/dsh-web-frontend'), version: '0.0.2' }]
+    const members = [member('apps/cli', '@deepseek-ai/dsh'), { ...member('apps/web', '@cerebrixos/superharness-web-frontend'), version: '0.0.2' }]
 
     expect(() => { dsh.verifyVersions(members) }).toThrow(/must share one version/)
     expect(() => { dsh.verifyVersions([members[0]!]) }).not.toThrow()

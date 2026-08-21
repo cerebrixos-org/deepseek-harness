@@ -5,10 +5,11 @@ import type { PackCatalogSnapshot } from '@cerebrixos/superharness-packs/types'
 import {
   CapabilityHome, CapabilityLibrary, PluginCatalog, type CapabilityHomeProps, type CapabilityLibraryInjected, type CapabilityLibraryProps,
 } from '../src/client/CapabilityLibrary.tsx'
-import { en, type CapabilityLibraryLocaleKey } from '../src/client/locales.ts'
+import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
-const t = (key: CapabilityLibraryLocaleKey): string => en[key]
+const messages: Readonly<Record<string, string>> = en
+const t: CapabilityLibraryProps['t'] = key => messages[key] ?? key
 
 const SNAPSHOT: PackCatalogSnapshot = {
   availableTools: [{ name: 'query_data', description: 'Query governed data.', core: false }],

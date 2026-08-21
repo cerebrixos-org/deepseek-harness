@@ -32,7 +32,7 @@ Its Loader row carries no launcher marker or special kind:
 
 ```yaml
 - id: web-startup
-  name: '@deepseek-ai/dsh-web-app/startup'
+  name: '@cerebrixos/superharness-web-app/startup'
 ```
 
 Every row configured from those values uses ordinary service injection and direct lazy config access:

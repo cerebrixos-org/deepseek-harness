@@ -372,7 +372,9 @@ class SuperHarnessFamily extends ReleaseFamily {
   readonly packageScope = '@cerebrixos/'
   readonly patterns = [
     'apps/cli/package.json',
+    'apps/web/package.json',
     'packages/bundle/hyperlake/package.json',
+    'packages/bundle/web-app/package.json',
     'packages/hyperlake/*/package.json',
   ] as const
   readonly tagPrefix = 'superharness-v'
