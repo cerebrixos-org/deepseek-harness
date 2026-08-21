@@ -263,6 +263,12 @@ export function onboardingReadiness(state: ModelsSettingsState): OnboardingReadi
     candidate.entry.settingsNs.length > 0
     && state.namespaces.has(candidate.entry.settingsNs))
   if (candidates.length === 0) return { kind: 'adapter-absent' }
+  if (candidates.every(candidate => !candidate.entry.active)) {
+    return {
+      kind: 'unavailable',
+      reason: 'provider-inactive',
+    }
+  }
   if (state.credentialError !== null) {
     return {
       kind: 'unavailable',
@@ -276,6 +282,13 @@ export function onboardingReadiness(state: ModelsSettingsState): OnboardingReadi
     }
   }
   const configuredCandidates = candidates.filter(candidate => candidate.apiKeyEnv !== undefined)
+  if (configuredCandidates.length > 0
+    && configuredCandidates.every(candidate => candidate.credential === undefined)) {
+    return {
+      kind: 'unavailable',
+      reason: 'credentials-unavailable',
+    }
+  }
   if (configuredCandidates.length > 0
     && configuredCandidates.every(candidate => candidate.credential?.writable === false)) {
     return {

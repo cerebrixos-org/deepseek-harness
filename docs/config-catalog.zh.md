@@ -33,7 +33,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/hyperlake/packs/src/index.ts:115`](../packages/hyperlake/packs/src/index.ts)
+来源：[`packages/hyperlake/packs/src/index.ts:123`](../packages/hyperlake/packs/src/index.ts)
 
 <a id="deepseek-aidsh-acp"></a>
 
@@ -2698,7 +2698,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/shell/tool-pwsh-persistent/src/index.ts:472`](../packages/shell/tool-pwsh-persistent/src/index.ts)
+来源：[`packages/shell/tool-pwsh-persistent/src/index.ts:457`](../packages/shell/tool-pwsh-persistent/src/index.ts)
 
 <a id="deepseek-aidsh-tool-ralph"></a>
 

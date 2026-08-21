@@ -11,7 +11,7 @@
  * @module @deepseek-ai/dsh/profile-boot
  */
 
-import { writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { FiberState, type Context } from '@deepseek-ai/cordis'
@@ -21,11 +21,13 @@ import {
   boot,
   composeEntries,
   healProfilesModuleFallback,
+  initProfile,
   installFailLoud,
   loadOptionalPatches,
   loadOverlayPatches,
   loadProfile,
   PROFILE_PATCH_FILENAME,
+  resolveProfileDir,
   watchUserPatches,
   type Profile,
 } from '@deepseek-ai/dsh-app-boot'
@@ -39,6 +41,14 @@ import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
 import { createProcessShutdown, type ProcessShutdown } from './process-shutdown.ts'
 
 const NAME = 'dsh'
+
+/** Bundles owned by the published Hyperlake executable rather than upstream dsh. */
+const HYPERLAKE_PROFILE_BUNDLES = [
+  '@deepseek-ai/dsh-base',
+  '@deepseek-ai/dsh-web-app',
+  '@cerebrixos/superharness-base',
+  '@cerebrixos/superharness-adapter-hyperlake',
+] as const
 
 /**
  * The home-level user patch layer (`$DSH_HOME/cordis.patch.yml`), applied
@@ -65,6 +75,19 @@ const PROFILE_ROOT_CONFIG = `# dsh profile root — an empty entry list. The tre
 
 /** Root config filename inside a profile directory. */
 export const PROFILE_ROOT_FILENAME = 'cordis.yml'
+
+/**
+ * Initialize the branded profile before delegating to dsh-app-boot.
+ *
+ * The upstream profile loader owns its own template table. A published
+ * Hyperlake executable cannot extend that table through its dependency graph,
+ * so the branded launcher must create its private profile manifest itself.
+ */
+function ensureHyperlakeProfile(name: string): void {
+  if (name !== 'hyperlake') return
+  const dir = resolveProfileDir(name)
+  if (!existsSync(join(dir, 'package.json'))) initProfile(dir, HYPERLAKE_PROFILE_BUNDLES)
+}
 
 /**
  * Resolve the telemetry opt-out switch into its boot patch. ANY non-empty
@@ -97,6 +120,7 @@ export function resolveTelemetryPatch(disabledEnv: string | undefined, hasRow: b
  */
 export function prepareProfile(name: string, userLayer = true): Profile {
   healProfilesModuleFallback(INSTALL_ANCHOR)
+  ensureHyperlakeProfile(name)
   const profile = loadProfile(NAME, name, INSTALL_ANCHOR, undefined, { userLayer })
   writeFileSync(join(profile.dir, PROFILE_ROOT_FILENAME), PROFILE_ROOT_CONFIG)
   return profile

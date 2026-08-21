@@ -28,8 +28,8 @@ Pack validation does not grant access. It proves composition readiness; the conn
 ## User Setup
 
 1. Use a password manager or trusted environment injector to set `HYPERLAKE_API_KEY` or `HYPERLAKE_ACCESS_TOKEN`.
-2. Run `npx @cerebrixos/hyperlake@0.2.1 auth login --host <tenant-url> --email <email> --api-key "$HYPERLAKE_API_KEY"`, substituting `--access-token "$HYPERLAKE_ACCESS_TOKEN"` when applicable.
-3. Verify the session with `npx @cerebrixos/hyperlake@0.2.1 auth whoami`.
+2. Run `npx @cerebrixos/hyperlake@0.2.4 auth login --host <tenant-url> --email <email> --api-key "$HYPERLAKE_API_KEY"`, substituting `--access-token "$HYPERLAKE_ACCESS_TOKEN"` when applicable.
+3. Verify the session with `npx @cerebrixos/hyperlake@0.2.4 auth whoami`.
 4. Start the bundled runtime with `npx @cerebrixos/hyperlake-superharness`.
 5. Configure a model provider in the local Web UI; this credential is independent from Hyperlake authentication.
 6. Open **Settings → Plugins**. Install any additional plugin from an npm package, Git URL, or absolute local path, then restart SuperHarness. Private sources use the user's existing npm configuration or SSH agent; credentials are never accepted in a source URL.

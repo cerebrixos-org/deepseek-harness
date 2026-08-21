@@ -754,7 +754,55 @@
         "tests/**/*.ts"
       ],
       "ignoreDependencies": [
+        "@cerebrixos/.+",
         "@deepseek-ai/.+"
+      ]
+    },
+    "packages/hyperlake/adapter-databricks": {
+      "entry": [],
+      "project": [
+        "src/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-mcp-client"
+      ]
+    },
+    "packages/hyperlake/adapter-hyperlake": {
+      "entry": [],
+      "project": [
+        "src/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-mcp-client"
+      ]
+    },
+    "packages/hyperlake/pack-data-engineering": {
+      "entry": [],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/hyperlake/packs": {
+      "ignoreDependencies": [
+        "zod"
+      ]
+    },
+    "packages/hyperlake/solution-life-sciences": {
+      "entry": [],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/hyperlake/ui-capability-library": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "tests/**/*.tsx"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
       ]
     },
     "packages/client/modules": {
@@ -798,6 +846,11 @@
     "packages/bundle/web-app": {
       "ignoreDependencies": [
         "@deepseek-ai/.+"
+      ]
+    },
+    "packages/bundle/hyperlake": {
+      "ignoreDependencies": [
+        "@cerebrixos/.+"
       ]
     }
   }

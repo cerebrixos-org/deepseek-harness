@@ -34,6 +34,14 @@ export type * from './types.ts'
 /** Categories describe composition intent without creating incompatible formats. */
 export type PackCategory = import('./types.ts').PackCategory
 
+/** Shared text output contract for model-facing pack tools. */
+function textToolOutput() {
+  return {
+    schema: { type: 'string' } as const,
+    render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+  }
+}
+
 /** One explicitly exported file in an industry pack. */
 export interface PackAsset {
   /** Stable identity within the pack. */
@@ -1305,10 +1313,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
       name: 'superharness_pack_describe',
       description: 'Describe one installed Hyperlake pack, including its requirements, resource slots, and exported asset catalog.',
       parameters: { pack_id: { type: 'string', required: true, description: 'Exact pack id returned by superharness_pack_list.' } },
-      output: {
-        schema: { type: 'string' },
-        render: (_args, value) => [{ type: 'text', text: value }],
-      },
+      output: textToolOutput(),
       execute: (args) => {
         if (!this.enabled(args.pack_id)) throw new Error(`SuperHarness pack ${JSON.stringify(args.pack_id)} is disabled`)
         return Promise.resolve(JSON.stringify(this.get(args.pack_id).manifest, null, 2))
@@ -1431,10 +1436,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
         objective: { type: 'string', description: 'Optional narrower human-requested objective; the exported success criteria remain mandatory.' },
         max_goal_rounds: { type: 'number', description: 'Autonomous round cap bounded by deployment policy.' },
       },
-      output: {
-        schema: { type: 'string' },
-        render: (_args, value) => [{ type: 'text', text: value }],
-      },
+      output: textToolOutput(),
       execute: async (args, exec) => {
         const { document, entry } = this.automationAsset(args.pack_id, args.asset_id, 'goal', exec.agent)
         const spec = record(document.spec, `goal ${args.asset_id}.spec`)
@@ -1467,10 +1469,7 @@ export default class SuperHarnessPackRegistry extends TypertRemoteService {
         inputs: { type: 'object', additionalProperties: true, description: 'Non-secret routine inputs. Credential values are forbidden.' },
         max_goal_rounds: { type: 'number', description: 'Autonomous round cap bounded by deployment policy.' },
       },
-      output: {
-        schema: { type: 'string' },
-        render: (_args, value) => [{ type: 'text', text: value }],
-      },
+      output: textToolOutput(),
       execute: async (args, exec) => {
         const { asset, document, entry } = this.automationAsset(args.pack_id, args.asset_id, 'routine', exec.agent)
         const spec = record(document.spec, `routine ${args.asset_id}.spec`)

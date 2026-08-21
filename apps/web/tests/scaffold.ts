@@ -73,10 +73,10 @@ import { REPO_ROOT, requireDist } from './support.ts'
 // } from '@deepseek-ai/dsh-client-ui-settings-models'
 export const WELCOME_NOTICE_SETTINGS_NAMESPACE = 'ui-onboarding'
 export const WELCOME_NOTICE_ACK_FIELD = 'welcomeNoticeVersion'
-export const WELCOME_NOTICE_VERSION = '2026-08-13.1'
+export const WELCOME_NOTICE_VERSION = '2026-08-16.1'
 export const WELCOME_NOTICE_COPY = {
   zh: {
-    title: '内测声明',
+    title: '欢迎使用 Hyperlake SuperHarness',
     body: 'Hyperlake SuperHarness 是用于治理基础设施、应用和数据工作的本地 AI 运行环境。它将您选择的模型与 Hyperlake 能力、审批、技能和解决方案包组合在一起，同时让凭据和执行保持在本地。',
     continueLabel: '继续',
   },

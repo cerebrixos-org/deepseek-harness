@@ -1,7 +1,7 @@
 {
   "name": "@cerebrixos/superharness-adapter-hyperlake",
   "description": "Hyperlake CLI MCP adapter for SuperHarness",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",

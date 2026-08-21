@@ -411,7 +411,7 @@ validate(id: string, bindings: PackResourceBinding[] = []): PackValidationResult
 @Remote('select') select(request: PackSelectRequest): PackSelectionResult
 ```
 
-Source: [`packages/hyperlake/packs/src/index.ts:353`](../../packages/hyperlake/packs/src/index.ts)
+Source: [`packages/hyperlake/packs/src/index.ts:390`](../../packages/hyperlake/packs/src/index.ts)
 
 <a id="cordis-events"></a>
 

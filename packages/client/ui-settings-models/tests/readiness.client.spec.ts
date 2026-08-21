@@ -1,10 +1,21 @@
 /** Pure first-run readiness projection over the shared Models join. */
 import { describe, expect, it } from 'vitest'
-import type { CredentialView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { CredentialView, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ModelsSettingsState, ProviderRow } from '../src/client/store.ts'
 import { onboardingReadiness, providerUsable } from '../src/client/store.ts'
 
 const missingCredential: CredentialView = { configured: false, writable: true }
+
+const deepSeekNamespace: SettingsNamespaceView = {
+  ns: 'llm-deepseek',
+  schema: {},
+  value: { apiKeyEnv: 'DEEPSEEK_API_KEY' },
+  base: { apiKeyEnv: 'DEEPSEEK_API_KEY' },
+  user: {},
+  applies: 'live',
+  secrets: [],
+  revision: 0,
+}
 
 function row(overrides: Partial<ProviderRow> = {}): ProviderRow {
   return {
@@ -48,7 +59,7 @@ function state(overrides: Partial<ModelsSettingsState> = {}): ModelsSettingsStat
     credentialError: null,
     writable: true,
     rows: [row()],
-    namespaces: new Map(),
+    namespaces: new Map([['llm-deepseek', deepSeekNamespace]]),
     ...overrides,
   }
 }

@@ -32,7 +32,7 @@ In PowerShell, the corresponding references are `$env:HYPERLAKE_API_KEY` and `$e
 3. Store a persistent CLI login with the API key:
 
 ```sh
-npx @cerebrixos/hyperlake@0.2.1 auth login \
+npx @cerebrixos/hyperlake@0.2.4 auth login \
   --host https://your-hyperlake.example.com \
   --email you@example.com \
   --api-key "$HYPERLAKE_API_KEY"
@@ -41,7 +41,7 @@ npx @cerebrixos/hyperlake@0.2.1 auth login \
 Or store an OAuth access token:
 
 ```sh
-npx @cerebrixos/hyperlake@0.2.1 auth login \
+npx @cerebrixos/hyperlake@0.2.4 auth login \
   --host https://your-hyperlake.example.com \
   --email you@example.com \
   --access-token "$HYPERLAKE_ACCESS_TOKEN"
@@ -52,7 +52,7 @@ The current CLI stores this login in the user's Hyperlake configuration file wit
 4. Verify the control-plane identity before starting the Harness:
 
 ```sh
-npx @cerebrixos/hyperlake@0.2.1 auth whoami
+npx @cerebrixos/hyperlake@0.2.4 auth whoami
 ```
 
 5. Start the complete local experience:

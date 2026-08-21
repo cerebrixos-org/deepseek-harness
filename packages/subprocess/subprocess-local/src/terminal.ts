@@ -3,6 +3,8 @@
 import { Buffer } from 'node:buffer'
 import { constants } from 'node:os'
 import { PassThrough } from 'node:stream'
+import xtermHeadless from '@xterm/headless'
+import type { Terminal as XtermTerminal } from '@xterm/headless'
 import type { IDisposable, IPty } from 'node-pty'
 import type {
   SubprocessOutcome,
@@ -11,6 +13,8 @@ import type {
   SubprocessTerminalSignal,
 } from '@deepseek-ai/dsh-subprocess'
 import type { ProcessIdentity, ProcessInspector } from './process-inspector.ts'
+
+const { Terminal } = xtermHeadless
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -42,6 +46,9 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
   private readonly exitDisposable: IDisposable
   private cleanup: Promise<void> | undefined
   private exited = false
+  private readonly emulator: XtermTerminal
+  private pendingTerminalWrites = 0
+  private exitOutcome: SubprocessOutcome | undefined
   private trackedDescendants: ProcessIdentity[] = []
   /** The spawned shell's start identity; scans stop adopting members once the root pid no longer carries it. */
   private readonly rootIdentity: ProcessIdentity | undefined
@@ -61,16 +68,44 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     this.pid = terminal.pid
     this.rootIdentity = inspector.processTree(this.pid).find(member => member.pid === this.pid)
     this.done = this.outcome.promise
-    this.dataDisposable = terminal.onData((data) => { this.output.write(Buffer.from(data, 'utf8')) })
+    this.emulator = new Terminal({
+      allowProposedApi: true,
+      cols: terminal.cols || 80,
+      rows: terminal.rows || 24,
+      logLevel: 'off',
+    })
+    this.emulator.parser.registerCsiHandler({ final: 'n' }, (params) => {
+      if (params.length !== 1 || params[0] !== 6) return false
+      const buffer = this.emulator.buffer.active
+      terminal.write(`\x1b[${buffer.cursorY + 1};${buffer.cursorX + 1}R`)
+      return true
+    })
+    this.dataDisposable = terminal.onData((data) => {
+      this.pendingTerminalWrites += 1
+      this.emulator.write(data, () => {
+        this.output.write(Buffer.from(data, 'utf8'))
+        this.pendingTerminalWrites -= 1
+        this.finishExit()
+      })
+    })
     this.exitDisposable = terminal.onExit(({ exitCode, signal: exitSignal }) => {
       if (this.exited) return
       this.exited = true
-      this.output.end()
-      this.outcome.resolve({
+      this.exitOutcome = {
         exitCode: exitSignal === undefined || exitSignal === 0 ? exitCode : null,
         signal: signalName(exitSignal),
-      })
+      }
+      this.finishExit()
     })
+  }
+
+  private finishExit(): void {
+    if (!this.exited || this.pendingTerminalWrites > 0 || this.exitOutcome === undefined) return
+    const outcome = this.exitOutcome
+    this.exitOutcome = undefined
+    this.emulator.dispose()
+    this.output.end()
+    this.outcome.resolve(outcome)
   }
 
   // node-pty writes synchronously; the seam returns a promise for remote transports.

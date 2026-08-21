@@ -35,7 +35,10 @@ function consumerEnvironment(consumerRoot: string): NodeJS.ProcessEnv {
   const environment = { ...process.env }
   delete environment.npm_config_user_agent
   delete environment.NPM_CONFIG_USER_AGENT
-  delete environment.NODE_OPTIONS
+  // npm's resolver can exceed Node's default old-space limit while linking the
+  // complete packed workspace family. Keep the verifier deterministic instead
+  // of inheriting an arbitrary caller limit.
+  environment.NODE_OPTIONS = '--max-old-space-size=4096'
   delete environment.NODE_PATH
   environment.DSH_HOME = resolve(consumerRoot, '.dsh')
   environment.DSH_AGENTS_HOME = resolve(consumerRoot, '.agents')
@@ -99,13 +102,26 @@ function main(): void {
 
     const environment = consumerEnvironment(consumerRoot)
     console.log(`release verify-packed-install: installing ${String(packed.size)} tarball(s) into ${consumerRoot}`)
-    // Optional dependencies are omitted: the Landlock platform packages behind
-    // them need a musl toolchain and one build per architecture, and a consumer
-    // that cannot install them must still start — which is what optional means
-    // here. Their entry package is a plain dependency of dsh-sandbox-local, so
-    // its tarball is supplied through --from.
-    capture('npm', ['install', '--no-audit', '--no-fund', '--package-lock=false', '--omit=optional'],
-      { cwd: consumerRoot, env: environment })
+    // Keep optional dependencies enabled. Both Landlock and Koffi publish their
+    // matching prebuilt platform payloads this way; omitting them makes npm
+    // attempt unsupported native compilation during an otherwise normal install.
+    // Every tarball is intentionally a direct dependency so unpublished
+    // members can satisfy one another. A nested install avoids npm spending
+    // minutes trying to hoist and deduplicate that synthetic release graph;
+    // module resolution still exercises each package's declared closure.
+    capture('npm', [
+      'install',
+      '--no-audit',
+      '--no-fund',
+      '--package-lock=false',
+      '--install-strategy=nested',
+      // Peer contracts are checked by the repository's package gates. Asking
+      // npm to solve the complete synthetic workspace peer graph here is both
+      // redundant and pathologically slow; this check owns packed runtime
+      // closure and executable startup.
+      '--legacy-peer-deps',
+    ],
+    { cwd: consumerRoot, env: environment })
 
     const bin = join(consumerRoot, 'node_modules', ...entry.packageName.split('/'), entry.binPath)
     const version = capture(process.execPath, [bin, '--version'], { cwd: consumerRoot, env: environment })

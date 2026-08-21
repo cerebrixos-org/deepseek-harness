@@ -1,8 +1,48 @@
-- dialog "添加一个 API Key 开始使用":
-  - heading "添加一个 API Key 开始使用" [level=2]
-  - paragraph: 配置 DeepSeek 官方模型，即可开始使用。
+- dialog "连接模型提供方":
+  - heading "连接模型提供方" [level=2]
+  - paragraph: 选择受支持的提供方并安全添加其 API 密钥。
+  - text: 提供方
+  - combobox "提供方":
+    - option "DeepSeek (official)" [selected]
+    - option "Amazon Bedrock"
+    - option "Ant Ling"
+    - option "Anthropic"
+    - option "Azure OpenAI"
+    - option "Cerebras"
+    - option "Cloudflare AI Gateway"
+    - option "Cloudflare Workers AI"
+    - option "DeepSeek"
+    - option "Fireworks AI"
+    - option "GitHub Copilot"
+    - option "Google AI"
+    - option "Google Vertex AI"
+    - option "Groq"
+    - option "Hugging Face"
+    - option "Kimi Coding"
+    - option "MiniMax"
+    - option "MiniMax (China)"
+    - option "Mistral AI"
+    - option "Moonshot AI"
+    - option "Moonshot AI (China)"
+    - option "NVIDIA"
+    - option "OpenAI"
+    - option "OpenCode"
+    - option "OpenCode Go"
+    - option "OpenRouter"
+    - option "Qwen Token Plan"
+    - option "Qwen Token Plan (China)"
+    - option "Together AI"
+    - option "Vercel AI Gateway"
+    - option "xAI"
+    - option "Xiaomi"
+    - option "Xiaomi Token Plan (Amsterdam)"
+    - option "Xiaomi Token Plan (China)"
+    - option "Xiaomi Token Plan (Singapore)"
+    - option "Z.ai"
+    - option "Z.ai Coding (China)"
   - text: API 密钥
   - textbox "API 密钥":
     - /placeholder: 输入 API 密钥
+  - group: 自定义设置
   - button "稍后配置"
   - button "保存并继续" [disabled]
